@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driver Dashboard — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-driver">
+<header class="site-header"><div class="bar">
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="NIHSS logo"><span class="name">NIHSS<small>Driver Dashboard</small></span></a><span class="portal-tag">🚐 Driver</span>
+  <div class="top-actions" style="margin:0;">
+    <span class="userchip" id="whoami"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn">Log Out</button>
+  </div>
+</div></header>
+<div class="gold-rule"></div>
+
+<div class="wrap section">
+  <div class="card" style="margin-bottom:24px;">
+    <div class="panel-header">
+      <div><span class="eyebrow">Today's schedule</span><h3 style="margin:0;">Day rail</h3></div>
+      <input type="date" id="railDate" style="width:auto;margin:0;">
+    </div>
+    <div class="day-rail"><div class="rail-track"></div><div class="rail-hours"></div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="pending">Pending</div>
+    <div class="tab" data-tab="accepted">Accepted</div>
+    <div class="tab" data-tab="all">All Requests</div>
+  </div>
+  <div id="list"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+const session = requireRole('driver');
+if(session){
+  document.getElementById('whoami').textContent = session.name;
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  const railBox = document.querySelector('.day-rail');
+  const railDate = document.getElementById('railDate');
+  railDate.value = new Date().toISOString().slice(0,10);
+  function refreshRail(){ renderDayRail(railBox, railDate.value); }
+  railDate.addEventListener('change', refreshRail);
+  refreshRail();
+
+  let activeTab = 'pending';
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); activeTab = t.dataset.tab; render();
+  }));
+
+  function badge(status){
+    const map = { Pending:'badge-pending', Accepted:'badge-accepted', Declined:'badge-declined', Completed:'badge-completed' };
+    return `<span class="badge ${map[status]||''}">${status}</span>`;
+  }
+
+  function render(){
+    const list = document.getElementById('list');
+    let items = getBookings().sort((a,b)=> a.date.localeCompare(b.date) || a.timeLeave.localeCompare(b.timeLeave));
+    if(activeTab==='pending') items = items.filter(b=>b.status==='Pending');
+    if(activeTab==='accepted') items = items.filter(b=>b.status==='Accepted');
+    if(!items.length){ list.innerHTML = '<div class="empty">No requests here.</div>'; return; }
+    list.innerHTML = items.map(b => `
+      <div class="req-card">
+        <div class="req-top">
+          <strong>${b.name} — ${b.dept}</strong>
+          ${badge(b.status)}
+        </div>
+        <div class="req-meta">${b.day}, ${b.date} · ${b.timeLeave}–${b.timeCollect} · ${b.location}</div>
+        <div class="req-meta">Purpose: ${b.purpose || '—'} · Contact: ${b.contact}</div>
+        ${b.remarks ? `<div class="req-meta">Remarks: ${b.remarks}</div>` : ''}
+        ${b.status==='Pending' ? `
+        <div class="req-actions">
+          <button class="btn btn-green btn-sm" data-accept="${b.id}">Accept</button>
+          <button class="btn btn-terracotta btn-sm" data-decline="${b.id}">Decline</button>
+        </div>` : b.acceptedBy ? `<div class="req-meta" style="margin-top:6px;">Accepted by ${b.acceptedBy}</div>` : ''}
+      </div>
+    `).join('');
+    list.querySelectorAll('[data-accept]').forEach(btn => btn.addEventListener('click', () => {
+      acceptBooking(btn.dataset.accept, session.name + ' (driver)');
+      toast('Accepted — confirmation email sent to requestor.');
+      refreshRail(); render();
+    }));
+    list.querySelectorAll('[data-decline]').forEach(btn => btn.addEventListener('click', () => {
+      declineBooking(btn.dataset.decline, session.name + ' (driver)');
+      toast('Request declined.');
+      render();
+    }));
+  }
+  render();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Management Login — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-management">
+<div class="login-shell">
+  <div class="login-card">
+    <a class="brand" href="index.html"><img src="assets/logo.png" alt="NIHSS logo"></a>
+    <h2 style="text-align:center;">📊 Management Login</h2>
+    <p style="text-align:center;font-size:.88rem;">Overview of all driver bookings.</p>
+    <form id="loginForm">
+      <label for="u">Username</label><input id="u" required>
+      <label for="p">Password</label><input id="p" type="password" required>
+      <div id="err" style="display:none;color:var(--terracotta);font-size:.82rem;margin:-8px 0 14px;">Incorrect username or password.</div>
+      <button class="btn btn-gold btn-block" type="submit">Log In</button>
+    </form>
+    <p class="hint" style="text-align:center;margin-top:16px;">Demo: manager / manager123</p>
+    <p style="text-align:center;"><a href="index.html">← Back to main page</a></p>
+  </div>
+</div>
+<script src="app.js"></script>
+<script>
+document.getElementById('loginForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const ok = login('management', document.getElementById('u').value.trim(), document.getElementById('p').value);
+  if(ok) window.location.href = 'management-dashboard.html';
+  else document.getElementById('err').style.display = 'block';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-admin">
+<header class="site-header"><div class="bar">
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="NIHSS logo"><span class="name">NIHSS<small>Admin Panel</small></span></a><span class="portal-tag">⚙️ Admin</span>
+  <div class="top-actions" style="margin:0;">
+    <span class="userchip" id="whoami"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn">Log Out</button>
+  </div>
+</div></header>
+<div class="gold-rule"></div>
+
+<div class="wrap section">
+
+  <div class="section-title-row"><h3 style="margin:0;">🕓 Pending requests</h3></div>
+  <p class="hint" style="margin-top:-6px;">Accept on the driver's behalf — this updates the driver dashboard, the day rail, and emails the requestor exactly as if the driver had accepted.</p>
+  <div id="pendingList" style="margin-bottom:36px;"></div>
+
+  <div class="section-title-row"><h3 style="margin:0;">🚐 Driver accounts</h3></div>
+  <div class="card" style="margin-bottom:20px;">
+    <form id="driverForm" class="field-row" style="margin-bottom:0;">
+      <div><label>Name</label><input id="dName" required></div>
+      <div><label>Username</label><input id="dUser" required></div>
+      <div><label>Password</label><input id="dPass" type="password" required></div>
+      <div><label>Contact Number</label><input id="dContact" required></div>
+      <div><label>Assigned Vehicle</label><input id="dVehicle" placeholder="Optional"></div>
+      <div style="align-self:end;"><button class="btn btn-gold btn-block" type="submit">Create Driver Account</button></div>
+    </form>
+  </div>
+  <div class="card" style="margin-bottom:36px;">
+    <table><thead><tr><th>Name</th><th>Username</th><th>Contact</th><th>Vehicle</th><th>Status</th><th></th></tr></thead>
+    <tbody id="driverTable"></tbody></table>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">📊 Management / dashboard-viewer accounts</h3></div>
+  <div class="card" style="margin-bottom:20px;">
+    <form id="mgmtForm" class="field-row" style="margin-bottom:0;">
+      <div><label>Name</label><input id="mName" required></div>
+      <div><label>Username</label><input id="mUser" required></div>
+      <div><label>Password</label><input id="mPass" type="password" required></div>
+      <div><label>Role</label>
+        <select id="mRole"><option>Management</option><option>Viewer</option></select>
+      </div>
+      <div style="align-self:end;grid-column:1/-1;"><button class="btn btn-gold" type="submit">Create Account</button></div>
+    </form>
+  </div>
+  <div class="card" style="margin-bottom:36px;">
+    <table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead>
+    <tbody id="mgmtTable"></tbody></table>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">✉️ Monthly report</h3></div>
+  <div class="card" style="margin-bottom:36px;">
+    <p>Set the email address(es) that receive an automated summary of all driver bookings at the end of each month — total trips, by department, pending vs. accepted, most frequent locations.</p>
+    <div id="emailChips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+    <form id="reportForm" style="display:flex;gap:10px;">
+      <input id="reportEmail" type="email" placeholder="add.recipient@nihss.sc" style="margin:0;">
+      <button class="btn btn-outline btn-sm" type="submit">Add</button>
+    </form>
+    <p class="hint" style="margin-top:14px;margin-bottom:0;">Report generation is simulated in this static build — connect a scheduled backend job (e.g. a monthly cron function) to actually send it.</p>
+    <button class="btn btn-ghost btn-sm" id="previewReport" style="margin-top:10px;">Preview this month's report</button>
+    <pre id="reportPreview" style="display:none;background:var(--cream-dim);padding:14px;border-radius:8px;margin-top:12px;font-size:.8rem;white-space:pre-wrap;"></pre>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">🎛️ Dashboard view settings</h3></div>
+  <div class="card" style="margin-bottom:36px;">
+    <p>Toggle which fields appear as columns on the Driver and Management dashboards.</p>
+    <div id="viewToggles" style="display:flex;flex-wrap:wrap;gap:18px;"></div>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">📜 Activity log</h3></div>
+  <div class="card"><div id="activityLog"></div></div>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+const session = requireRole('admin');
+if(session){
+  document.getElementById('whoami').textContent = session.name;
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  /* ---- Pending requests (admin can accept on driver's behalf) ---- */
+  function renderPending(){
+    const list = document.getElementById('pendingList');
+    const items = getBookings().filter(b=>b.status==='Pending').sort((a,b)=>a.date.localeCompare(b.date));
+    list.innerHTML = items.length ? items.map(b => `
+      <div class="req-card">
+        <div class="req-top"><strong>${b.name} — ${b.dept}</strong><span class="badge badge-pending">Pending</span></div>
+        <div class="req-meta">${b.day}, ${b.date} · ${b.timeLeave}–${b.timeCollect} · ${b.location}</div>
+        <div class="req-actions">
+          <button class="btn btn-green btn-sm" data-accept="${b.id}">Accept on driver's behalf</button>
+          <button class="btn btn-terracotta btn-sm" data-decline="${b.id}">Decline</button>
+        </div>
+      </div>`).join('') : '<div class="empty">No pending requests.</div>';
+    list.querySelectorAll('[data-accept]').forEach(btn => btn.addEventListener('click', () => {
+      acceptBooking(btn.dataset.accept, session.name + ' (admin)');
+      toast('Accepted on driver\'s behalf — driver dashboard and email updated.');
+      renderPending(); renderActivity();
+    }));
+    list.querySelectorAll('[data-decline]').forEach(btn => btn.addEventListener('click', () => {
+      declineBooking(btn.dataset.decline, session.name + ' (admin)');
+      toast('Request declined.');
+      renderPending(); renderActivity();
+    }));
+  }
+
+  /* ---- Driver accounts ---- */
+  function renderDrivers(){
+    const drivers = readDB(DB_KEYS.drivers, []);
+    document.getElementById('driverTable').innerHTML = drivers.map(d => `
+      <tr>
+        <td>${d.name}</td><td class="mono">${d.username}</td><td>${d.contact}</td><td>${d.vehicle||'—'}</td>
+        <td>${d.active===false ? '<span class="badge badge-declined">Inactive</span>' : '<span class="badge badge-accepted">Active</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" data-toggle-driver="${d.id}">${d.active===false?'Reactivate':'Deactivate'}</button></td>
+      </tr>`).join('') || `<tr><td colspan="6" class="empty">No drivers yet.</td></tr>`;
+    document.querySelectorAll('[data-toggle-driver]').forEach(btn => btn.addEventListener('click', () => {
+      const drivers = readDB(DB_KEYS.drivers, []);
+      const d = drivers.find(x=>x.id===btn.dataset.toggleDriver);
+      d.active = d.active===false ? true : false;
+      writeDB(DB_KEYS.drivers, drivers);
+      logActivity(`${session.name} ${d.active?'reactivated':'deactivated'} driver account "${d.username}"`);
+      renderDrivers(); renderActivity();
+    }));
+  }
+  document.getElementById('driverForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    const drivers = readDB(DB_KEYS.drivers, []);
+    drivers.push({ id:uid('d'), name:dName.value, username:dUser.value, password:dPass.value, contact:dContact.value, vehicle:dVehicle.value, active:true });
+    writeDB(DB_KEYS.drivers, drivers);
+    logActivity(`${session.name} created driver account "${dUser.value}"`);
+    this.reset(); renderDrivers(); renderActivity();
+    toast('Driver account created.');
+  });
+
+  /* ---- Management / viewer accounts ---- */
+  function renderMgmt(){
+    const users = readDB(DB_KEYS.managers, []);
+    document.getElementById('mgmtTable').innerHTML = users.map(u => `
+      <tr>
+        <td>${u.name}</td><td class="mono">${u.username}</td><td>${u.role}</td>
+        <td>${u.active===false ? '<span class="badge badge-declined">Inactive</span>' : '<span class="badge badge-accepted">Active</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" data-toggle-mgmt="${u.id}">${u.active===false?'Reactivate':'Deactivate'}</button></td>
+      </tr>`).join('') || `<tr><td colspan="5" class="empty">No accounts yet.</td></tr>`;
+    document.querySelectorAll('[data-toggle-mgmt]').forEach(btn => btn.addEventListener('click', () => {
+      const users = readDB(DB_KEYS.managers, []);
+      const u = users.find(x=>x.id===btn.dataset.toggleMgmt);
+      u.active = u.active===false ? true : false;
+      writeDB(DB_KEYS.managers, users);
+      logActivity(`${session.name} ${u.active?'reactivated':'deactivated'} management account "${u.username}"`);
+      renderMgmt(); renderActivity();
+    }));
+  }
+  document.getElementById('mgmtForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    const users = readDB(DB_KEYS.managers, []);
+    users.push({ id:uid('m'), name:mName.value, username:mUser.value, password:mPass.value, role:mRole.value, active:true });
+    writeDB(DB_KEYS.managers, users);
+    logActivity(`${session.name} created ${mRole.value.toLowerCase()} account "${mUser.value}"`);
+    this.reset(); renderMgmt(); renderActivity();
+    toast('Account created.');
+  });
+
+  /* ---- Report recipients ---- */
+  function renderEmails(){
+    const emails = readDB(DB_KEYS.reportEmails, []);
+    document.getElementById('emailChips').innerHTML = emails.map(em => `
+      <span class="badge badge-pending" style="font-size:.78rem;">${em} <span style="cursor:pointer;margin-left:4px;" data-rm="${em}">✕</span></span>
+    `).join('') || '<span class="hint">No recipients set.</span>';
+    document.querySelectorAll('[data-rm]').forEach(x => x.addEventListener('click', () => {
+      const emails = readDB(DB_KEYS.reportEmails, []).filter(e => e !== x.dataset.rm);
+      writeDB(DB_KEYS.reportEmails, emails);
+      logActivity(`${session.name} removed report recipient "${x.dataset.rm}"`);
+      renderEmails(); renderActivity();
+    }));
+  }
+  document.getElementById('reportForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    const val = reportEmail.value.trim();
+    if(!val) return;
+    const emails = readDB(DB_KEYS.reportEmails, []);
+    if(!emails.includes(val)) emails.push(val);
+    writeDB(DB_KEYS.reportEmails, emails);
+    logActivity(`${session.name} added report recipient "${val}"`);
+    reportEmail.value=''; renderEmails(); renderActivity();
+  });
+  document.getElementById('previewReport').addEventListener('click', () => {
+    const now = new Date();
+    const monthBookings = getBookings().filter(b => new Date(b.date).getMonth() === now.getMonth());
+    const byDept = {};
+    monthBookings.forEach(b => byDept[b.dept] = (byDept[b.dept]||0)+1);
+    const pre = document.getElementById('reportPreview');
+    pre.style.display = 'block';
+    pre.textContent =
+`NIHSS Driver Booking — Monthly Report (${now.toLocaleDateString('en-GB',{month:'long', year:'numeric'})})
+Recipients: ${readDB(DB_KEYS.reportEmails, []).join(', ') || 'none set'}
+
+Total trips: ${monthBookings.length}
+Pending: ${monthBookings.filter(b=>b.status==='Pending').length}
+Accepted: ${monthBookings.filter(b=>b.status==='Accepted').length}
+Declined: ${monthBookings.filter(b=>b.status==='Declined').length}
+
+By department:
+${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
+    simulateEmail(readDB(DB_KEYS.reportEmails, []).join(', '), 'NIHSS Monthly Driver Booking Report');
+    toast('Preview generated (simulated send to recipients).');
+  });
+
+  /* ---- Dashboard view toggles ---- */
+  const VIEW_FIELDS = ['Department','Contact Number','Purpose of Trip','Remarks'];
+  function renderToggles(){
+    const settings = readDB('nihss_view_settings', VIEW_FIELDS.reduce((a,f)=>(a[f]=true,a),{}));
+    document.getElementById('viewToggles').innerHTML = VIEW_FIELDS.map(f => `
+      <label style="display:flex;align-items:center;gap:8px;font-weight:500;">
+        <input type="checkbox" style="width:auto;margin:0;" data-field="${f}" ${settings[f]?'checked':''}> ${f}
+      </label>`).join('');
+    document.querySelectorAll('[data-field]').forEach(cb => cb.addEventListener('change', () => {
+      const s = readDB('nihss_view_settings', VIEW_FIELDS.reduce((a,f)=>(a[f]=true,a),{}));
+      s[cb.dataset.field] = cb.checked;
+      writeDB('nihss_view_settings', s);
+      logActivity(`${session.name} ${cb.checked?'showed':'hid'} "${cb.dataset.field}" on dashboards`);
+      renderActivity();
+    }));
+  }
+
+  /* ---- Activity log ---- */
+  function renderActivity(){
+    const log = readDB(DB_KEYS.activity, []);
+    document.getElementById('activityLog').innerHTML = log.length ? log.slice(0,20).map(a => `
+      <div style="padding:8px 0;border-bottom:1px solid var(--paper-line);font-size:.85rem;">
+        <span class="mono" style="color:var(--grey);">${new Date(a.at).toLocaleString()}</span> — ${a.msg}
+      </div>`).join('') : '<div class="empty">No activity yet.</div>';
+  }
+
+  renderPending(); renderDrivers(); renderMgmt(); renderEmails(); renderToggles(); renderActivity();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Management Dashboard — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-management">
+<header class="site-header"><div class="bar">
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="NIHSS logo"><span class="name">NIHSS<small>Management Dashboard</small></span></a><span class="portal-tag">📊 Management</span>
+  <div class="top-actions" style="margin:0;">
+    <span class="userchip" id="whoami"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn">Log Out</button>
+  </div>
+</div></header>
+<div class="gold-rule"></div>
+
+<div class="wrap section">
+  <div class="stats-row" id="stats"></div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <div class="panel-header">
+      <div><span class="eyebrow">Driver schedule</span><h3 style="margin:0;">Day rail</h3></div>
+      <input type="date" id="railDate" style="width:auto;margin:0;">
+    </div>
+    <div class="day-rail"><div class="rail-track"></div><div class="rail-hours"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="panel-header">
+      <h3 style="margin:0;">Booking history</h3>
+      <div style="display:flex;gap:10px;">
+        <select id="filterStatus" style="width:auto;margin:0;">
+          <option value="">All statuses</option>
+          <option>Pending</option><option>Accepted</option><option>Declined</option>
+        </select>
+        <input type="text" id="filterDept" placeholder="Filter by department" style="width:auto;margin:0;">
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="table">
+        <thead><tr><th>Date</th><th>Name</th><th>Dept</th><th>Time</th><th>Location</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+const session = requireRole('management');
+if(session){
+  document.getElementById('whoami').textContent = session.name;
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  const railBox = document.querySelector('.day-rail');
+  const railDate = document.getElementById('railDate');
+  railDate.value = new Date().toISOString().slice(0,10);
+  function refreshRail(){ renderDayRail(railBox, railDate.value); }
+  railDate.addEventListener('change', refreshRail);
+  refreshRail();
+
+  function badge(status){
+    const map = { Pending:'badge-pending', Accepted:'badge-accepted', Declined:'badge-declined', Completed:'badge-completed' };
+    return `<span class="badge ${map[status]||''}">${status}</span>`;
+  }
+
+  function renderStats(){
+    const all = getBookings();
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+    const thisWeek = all.filter(b => new Date(b.date) >= weekAgo);
+    const byDept = {};
+    all.forEach(b => byDept[b.dept] = (byDept[b.dept]||0)+1);
+    const topDept = Object.entries(byDept).sort((a,b)=>b[1]-a[1])[0];
+    document.getElementById('stats').innerHTML = `
+      <div class="stat"><div class="num">${thisWeek.length}</div><div class="label">Requests this week</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Pending').length}</div><div class="label">Pending</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Accepted').length}</div><div class="label">Accepted</div></div>
+      <div class="stat"><div class="num">${topDept ? topDept[0] : '—'}</div><div class="label">Top department</div></div>
+    `;
+  }
+
+  function renderTable(){
+    const statusF = document.getElementById('filterStatus').value;
+    const deptF = document.getElementById('filterDept').value.toLowerCase();
+    let rows = getBookings().sort((a,b)=> b.date.localeCompare(a.date));
+    if(statusF) rows = rows.filter(b=>b.status===statusF);
+    if(deptF) rows = rows.filter(b=>b.dept.toLowerCase().includes(deptF));
+    const tbody = document.querySelector('#table tbody');
+    tbody.innerHTML = rows.length ? rows.map(b => `
+      <tr>
+        <td>${b.date}</td><td>${b.name}</td><td>${b.dept}</td>
+        <td>${b.timeLeave}–${b.timeCollect}</td><td>${b.location}</td>
+        <td>${badge(b.status)}</td>
+      </tr>`).join('') : `<tr><td colspan="6" class="empty">No matching requests.</td></tr>`;
+  }
+
+  document.getElementById('filterStatus').addEventListener('change', renderTable);
+  document.getElementById('filterDept').addEventListener('input', renderTable);
+
+  renderStats(); renderTable();
+}
+</script>
+</body>
+</html>
