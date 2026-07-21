@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-admin">
+<header class="site-header"><div class="bar">
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="NIHSS logo"><span class="name">NIHSS<small>Admin Panel</small></span></a><span class="portal-tag">⚙️ Admin</span>
+  <div class="top-actions" style="margin:0;">
+    <span class="userchip" id="whoami"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn">Log Out</button>
+  </div>
+</div></header>
+<div class="gold-rule"></div>
+
+<div class="wrap section">
+
+  <div class="stats-row" id="summaryStats" style="margin-bottom:30px;"></div>
+
+  <div class="section-title-row"><h3 style="margin:0;">🕓 Pending requests</h3></div>
+  <p class="hint" style="margin-top:-6px;">Accept, deny, or reschedule on the driver's behalf — this updates the driver dashboard and emails the requestor exactly as if the driver had done it.</p>
+  <div id="pendingList" style="margin-bottom:36px;"></div>
+
+  <div class="section-title-row"><h3 style="margin:0;">🚐 Driver accounts</h3></div>
+  <div class="card" style="margin-bottom:20px;">
+    <form id="driverForm" class="field-row" style="margin-bottom:0;">
+      <div><label>Name</label><input id="dName" required></div>
+      <div><label>Username</label><input id="dUser" required></div>
+      <div><label>Password</label><input id="dPass" type="password" required></div>
+      <div><label>Contact Number</label><input id="dContact" required></div>
+      <div><label>Assigned Vehicle</label><input id="dVehicle" placeholder="Optional"></div>
+      <div style="align-self:end;"><button class="btn btn-gold btn-block" type="submit">Register Driver</button></div>
+    </form>
+  </div>
+  <div class="card" style="margin-bottom:36px;">
+    <table><thead><tr><th>Name</th><th>Username</th><th>Contact</th><th>Vehicle</th><th>Status</th><th colspan="3"></th></tr></thead>
+    <tbody id="driverTable"></tbody></table>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">📊 Management users</h3></div>
+  <p class="hint" style="margin-top:-6px;">Level 1 = View Only. Level 2 = Approver (can accept/deny/reschedule bookings).</p>
+  <div class="card" style="margin-bottom:20px;">
+    <form id="mgmtForm" class="field-row" style="margin-bottom:0;">
+      <div><label>Name</label><input id="mName" required></div>
+      <div><label>Username</label><input id="mUser" required></div>
+      <div><label>Password</label><input id="mPass" type="password" required></div>
+      <div><label>Permission Level</label>
+        <select id="mLevel"><option value="1">Level 1 — View Only</option><option value="2">Level 2 — Approver</option></select>
+      </div>
+      <div style="align-self:end;grid-column:1/-1;"><button class="btn btn-gold" type="submit">Create Account</button></div>
+    </form>
+  </div>
+  <div class="card" style="margin-bottom:36px;">
+    <table><thead><tr><th>Name</th><th>Username</th><th>Level</th><th>Status</th><th colspan="3"></th></tr></thead>
+    <tbody id="mgmtTable"></tbody></table>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">✉️ Monthly report recipients</h3></div>
+  <div class="card" style="margin-bottom:36px;">
+    <p>These addresses receive the automated monthly booking report. Toggle a recipient off to pause it without deleting it.</p>
+    <form id="reportForm" class="field-row" style="margin-bottom:14px;">
+      <div><label>Name</label><input id="reName" placeholder="Display name"></div>
+      <div><label>Email</label><input id="reEmail" type="email" required placeholder="name@health.gov.sc"></div>
+      <div style="align-self:end;"><button class="btn btn-outline btn-block" type="submit">Add Recipient</button></div>
+    </form>
+    <table><thead><tr><th>Name</th><th>Email</th><th>Enabled</th><th colspan="2"></th></tr></thead>
+    <tbody id="reportTable"></tbody></table>
+    <p class="hint" style="margin-top:14px;margin-bottom:0;">Sending on the 1st of each month is simulated in this static build — see <span class="mono">supabase/functions/monthly-report</span> to deploy the real scheduled sender.</p>
+    <button class="btn btn-ghost btn-sm" id="previewReport" style="margin-top:10px;">Preview this month's report</button>
+    <pre id="reportPreview" style="display:none;background:var(--cream-dim);padding:14px;border-radius:8px;margin-top:12px;font-size:.8rem;white-space:pre-wrap;"></pre>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">🎛️ Dashboard view settings</h3></div>
+  <div class="card" style="margin-bottom:36px;">
+    <p>Toggle which fields appear as columns on the Driver and Management dashboards.</p>
+    <div id="viewToggles" style="display:flex;flex-wrap:wrap;gap:18px;"></div>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">📜 Audit trail</h3></div>
+  <div class="card">
+    <div class="panel-header">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <input type="text" id="auditSearch" placeholder="Search username, action, details…" style="width:240px;margin:0;">
+        <select id="auditAction" style="width:auto;margin:0;">
+          <option value="">All actions</option>
+          <option>Login</option><option>Logout</option>
+          <option>Booking Created</option><option>Booking Accepted</option><option>Booking Denied</option><option>Booking Rescheduled</option>
+        </select>
+        <select id="auditStatus" style="width:auto;margin:0;">
+          <option value="">All statuses</option><option>Success</option><option>Failed</option>
+        </select>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="exportAudit">Export CSV</button>
+    </div>
+    <div style="overflow-x:auto;max-height:480px;overflow-y:auto;">
+      <table id="auditTable">
+        <thead><tr><th>Date &amp; Time</th><th>Username</th><th>Full Name</th><th>Role</th><th>IP</th><th>Action</th><th>Status</th><th>Details</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Reschedule modal -->
+<div id="rescheduleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:380px;width:92%;">
+    <h3 style="margin-top:0;">Propose a new time</h3>
+    <label for="rDate">Date</label><input type="date" id="rDate">
+    <div class="field-row">
+      <div><label for="rLeave">Leaving</label><input type="time" id="rLeave"></div>
+      <div><label for="rCollect">Collected</label><input type="time" id="rCollect"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-gold btn-block" id="rConfirm">Send Reschedule</button>
+      <button class="btn btn-ghost btn-block" id="rCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reset password modal -->
+<div id="pwModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:340px;width:92%;">
+    <h3 style="margin-top:0;">Reset password</h3>
+    <label for="pwNew">New password</label><input type="text" id="pwNew" placeholder="Set a new password">
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-gold btn-block" id="pwConfirm">Save</button>
+      <button class="btn btn-ghost btn-block" id="pwCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit driver modal -->
+<div id="driverEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:380px;width:92%;">
+    <h3 style="margin-top:0;">Edit driver</h3>
+    <label>Name</label><input id="deName">
+    <label>Contact</label><input id="deContact">
+    <label>Vehicle</label><input id="deVehicle">
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-gold btn-block" id="deSave">Save</button>
+      <button class="btn btn-ghost btn-block" id="deCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit manager modal -->
+<div id="mgrEditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:380px;width:92%;">
+    <h3 style="margin-top:0;">Edit management user</h3>
+    <label>Name</label><input id="meName">
+    <label>Permission Level</label>
+    <select id="meLevel"><option value="1">Level 1 — View Only</option><option value="2">Level 2 — Approver</option></select>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-gold btn-block" id="meSave">Save</button>
+      <button class="btn btn-ghost btn-block" id="meCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+const session = requireRole('admin');
+if(session){
+  document.getElementById('whoami').textContent = session.name;
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  /* ---- Summary cards ---- */
+  async function renderSummary(){
+    const [drivers, managers, bookings, audit] = await Promise.all([listDrivers(), listManagers(), getBookings(), getAuditLog()]);
+    const loginAttempts = audit.filter(a=>a.action==='Login').length;
+    document.getElementById('summaryStats').innerHTML = `
+      <div class="stat"><div class="num">${drivers.length}</div><div class="label">Total drivers</div></div>
+      <div class="stat"><div class="num">${managers.length}</div><div class="label">Management users</div></div>
+      <div class="stat"><div class="num">${bookings.length}</div><div class="label">Total bookings</div></div>
+      <div class="stat"><div class="num">${bookings.filter(b=>b.status==='Pending').length}</div><div class="label">Pending requests</div></div>
+      <div class="stat"><div class="num">${loginAttempts}</div><div class="label">Login attempts</div></div>
+      <div class="stat"><div class="num">${audit.length}</div><div class="label">System activity</div></div>
+    `;
+  }
+
+  /* ---- Pending requests (admin can accept/deny/reschedule on driver's behalf) ---- */
+  let rescheduleTargetId = null;
+  async function renderPending(){
+    const list = document.getElementById('pendingList');
+    const items = (await getBookings()).filter(b=>b.status==='Pending').sort((a,b)=>a.date.localeCompare(b.date));
+    list.innerHTML = items.length ? items.map(b => `
+      <div class="req-card">
+        <div class="req-top"><strong>${b.name} — ${b.dept}</strong><span class="badge badge-pending">Pending</span></div>
+        <div class="req-meta">${b.day}, ${b.date} · ${b.timeLeave}–${b.timeCollect} · ${b.location} → ${b.destination||'—'}</div>
+        <div class="req-actions">
+          <button class="btn btn-green btn-sm" data-accept="${b.id}">Accept on driver's behalf</button>
+          <button class="btn btn-terracotta btn-sm" data-deny="${b.id}">Deny</button>
+          <button class="btn btn-outline btn-sm" data-reschedule="${b.id}">Reschedule</button>
+        </div>
+      </div>`).join('') : '<div class="empty">No pending requests.</div>';
+    list.querySelectorAll('[data-accept]').forEach(btn => btn.addEventListener('click', async () => {
+      await acceptBooking(btn.dataset.accept, session.name + ' (admin)', session);
+      toast('Accepted on driver\'s behalf.');
+      renderPending(); renderSummary(); renderAudit();
+    }));
+    list.querySelectorAll('[data-deny]').forEach(btn => btn.addEventListener('click', async () => {
+      await denyBooking(btn.dataset.deny, session.name + ' (admin)', session);
+      toast('Request denied.');
+      renderPending(); renderSummary(); renderAudit();
+    }));
+    list.querySelectorAll('[data-reschedule]').forEach(btn => btn.addEventListener('click', () => openReschedule(btn.dataset.reschedule)));
+  }
+  function openReschedule(id){
+    rescheduleTargetId = id;
+    document.getElementById('rDate').value = new Date().toISOString().slice(0,10);
+    document.getElementById('rescheduleModal').style.display = 'flex';
+  }
+  document.getElementById('rCancel').addEventListener('click', () => {
+    document.getElementById('rescheduleModal').style.display = 'none';
+  });
+  document.getElementById('rConfirm').addEventListener('click', async () => {
+    const d = document.getElementById('rDate').value, l = document.getElementById('rLeave').value, c = document.getElementById('rCollect').value;
+    if(!d || !l || !c){ toast('Fill in the proposed date and times.'); return; }
+    await rescheduleBooking(rescheduleTargetId, d, l, c, session.name + ' (admin)', session);
+    document.getElementById('rescheduleModal').style.display = 'none';
+    toast('Reschedule proposed — requestor emailed with the new time.');
+    renderPending(); renderSummary(); renderAudit();
+  });
+
+  /* ---- Driver accounts ---- */
+  let pwTarget = null; // { type:'driver'|'manager', id }
+  document.getElementById('pwCancel').addEventListener('click', () => document.getElementById('pwModal').style.display='none');
+  document.getElementById('pwConfirm').addEventListener('click', async () => {
+    const val = document.getElementById('pwNew').value.trim();
+    if(!val){ toast('Enter a new password.'); return; }
+    if(pwTarget.type === 'driver') await resetDriverPassword(pwTarget.id, val);
+    else await resetManagerPassword(pwTarget.id, val);
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action: pwTarget.type==='driver' ? 'Password Reset (Driver)' : 'Password Reset (Management)', status:'Success', details:pwTarget.id });
+    document.getElementById('pwModal').style.display='none';
+    toast('Password reset.');
+    renderAudit();
+  });
+  function openPasswordReset(type, id){ pwTarget = { type, id }; document.getElementById('pwNew').value=''; document.getElementById('pwModal').style.display='flex'; }
+
+  let driverEditId = null;
+  document.getElementById('deCancel').addEventListener('click', () => document.getElementById('driverEditModal').style.display='none');
+  document.getElementById('deSave').addEventListener('click', async () => {
+    await updateDriver(driverEditId, deName.value, deContact.value, deVehicle.value);
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Driver Updated', status:'Success', details:deName.value });
+    document.getElementById('driverEditModal').style.display='none';
+    toast('Driver updated.'); renderDrivers(); renderAudit();
+  });
+
+  async function renderDrivers(){
+    const drivers = await listDrivers();
+    document.getElementById('driverTable').innerHTML = drivers.map(d => `
+      <tr>
+        <td>${d.name}</td><td class="mono">${d.username}</td><td>${d.contact||''}</td><td>${d.vehicle||'—'}</td>
+        <td>${d.active===false ? '<span class="badge badge-declined">Inactive</span>' : '<span class="badge badge-accepted">Active</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" data-edit-driver="${d.id}" data-name="${d.name}" data-contact="${d.contact||''}" data-vehicle="${d.vehicle||''}">Edit</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-toggle-driver="${d.id}" data-active="${d.active}" data-username="${d.username}">${d.active===false?'Reactivate':'Deactivate'}</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-pw-driver="${d.id}">Reset PW</button>
+            <button class="btn btn-terracotta btn-sm" data-delete-driver="${d.id}" data-username="${d.username}">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="8" class="empty">No drivers yet.</td></tr>`;
+    document.querySelectorAll('[data-edit-driver]').forEach(btn => btn.addEventListener('click', () => {
+      driverEditId = btn.dataset.editDriver;
+      deName.value = btn.dataset.name; deContact.value = btn.dataset.contact; deVehicle.value = btn.dataset.vehicle;
+      document.getElementById('driverEditModal').style.display='flex';
+    }));
+    document.querySelectorAll('[data-toggle-driver]').forEach(btn => btn.addEventListener('click', async () => {
+      await toggleDriverActive(btn.dataset.toggleDriver);
+      const willBeActive = btn.dataset.active === 'false';
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action: willBeActive?'Driver Enabled':'Driver Disabled', status:'Success', details:btn.dataset.username });
+      renderDrivers(); renderAudit();
+    }));
+    document.querySelectorAll('[data-pw-driver]').forEach(btn => btn.addEventListener('click', () => openPasswordReset('driver', btn.dataset.pwDriver)));
+    document.querySelectorAll('[data-delete-driver]').forEach(btn => btn.addEventListener('click', async () => {
+      if(!confirm('Delete this driver account? This cannot be undone.')) return;
+      await deleteDriver(btn.dataset.deleteDriver);
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Driver Deleted', status:'Success', details:btn.dataset.username });
+      renderDrivers(); renderSummary(); renderAudit();
+    }));
+  }
+  document.getElementById('driverForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const ok = await createDriver(dName.value, dUser.value, dPass.value, dContact.value, dVehicle.value);
+    if(!ok) return;
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Driver Created', status:'Success', details:dUser.value });
+    this.reset(); renderDrivers(); renderSummary(); renderAudit();
+    toast('Driver account created.');
+  });
+
+  /* ---- Management users ---- */
+  let mgrEditId = null;
+  document.getElementById('meCancel').addEventListener('click', () => document.getElementById('mgrEditModal').style.display='none');
+  document.getElementById('meSave').addEventListener('click', async () => {
+    await updateManager(mgrEditId, meName.value, meLevel.value);
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'User Permissions Changed', status:'Success', details:`${meName.value} → Level ${meLevel.value}` });
+    document.getElementById('mgrEditModal').style.display='none';
+    toast('Management user updated.'); renderMgmt(); renderAudit();
+  });
+
+  async function renderMgmt(){
+    const users = await listManagers();
+    document.getElementById('mgmtTable').innerHTML = users.map(u => `
+      <tr>
+        <td>${u.name}</td><td class="mono">${u.username}</td><td>Level ${u.level}</td>
+        <td>${u.active===false ? '<span class="badge badge-declined">Inactive</span>' : '<span class="badge badge-accepted">Active</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" data-edit-mgmt="${u.id}" data-name="${u.name}" data-level="${u.level}">Edit</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-toggle-mgmt="${u.id}" data-active="${u.active}" data-username="${u.username}">${u.active===false?'Reactivate':'Deactivate'}</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-pw-mgmt="${u.id}">Reset PW</button>
+            <button class="btn btn-terracotta btn-sm" data-delete-mgmt="${u.id}" data-username="${u.username}">Delete</button></td>
+      </tr>`).join('') || `<tr><td colspan="7" class="empty">No accounts yet.</td></tr>`;
+    document.querySelectorAll('[data-edit-mgmt]').forEach(btn => btn.addEventListener('click', () => {
+      mgrEditId = btn.dataset.editMgmt;
+      meName.value = btn.dataset.name; meLevel.value = btn.dataset.level;
+      document.getElementById('mgrEditModal').style.display='flex';
+    }));
+    document.querySelectorAll('[data-toggle-mgmt]').forEach(btn => btn.addEventListener('click', async () => {
+      await toggleManagerActive(btn.dataset.toggleMgmt);
+      const willBeActive = btn.dataset.active === 'false';
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action: willBeActive?'Management User Enabled':'Management User Disabled', status:'Success', details:btn.dataset.username });
+      renderMgmt(); renderAudit();
+    }));
+    document.querySelectorAll('[data-pw-mgmt]').forEach(btn => btn.addEventListener('click', () => openPasswordReset('manager', btn.dataset.pwMgmt)));
+    document.querySelectorAll('[data-delete-mgmt]').forEach(btn => btn.addEventListener('click', async () => {
+      if(!confirm('Delete this management account? This cannot be undone.')) return;
+      await deleteManager(btn.dataset.deleteMgmt);
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Management User Deleted', status:'Success', details:btn.dataset.username });
+      renderMgmt(); renderSummary(); renderAudit();
+    }));
+  }
+  document.getElementById('mgmtForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const ok = await createManager(mName.value, mUser.value, mPass.value, mLevel.value);
+    if(!ok) return;
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Management User Created', status:'Success', details:`${mUser.value} (Level ${mLevel.value})` });
+    this.reset(); renderMgmt(); renderSummary(); renderAudit();
+    toast('Account created.');
+  });
+
+  /* ---- Report recipients ---- */
+  async function renderReportTable(){
+    const recips = await getReportEmails();
+    document.getElementById('reportTable').innerHTML = recips.map(r => `
+      <tr>
+        <td>${r.name||'—'}</td><td class="mono">${r.email}</td>
+        <td><label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" style="width:auto;margin:0;" data-toggle-recip="${r.id}" ${r.enabled?'checked':''}> ${r.enabled?'Enabled':'Disabled'}</label></td>
+        <td colspan="2"><button class="btn btn-terracotta btn-sm" data-remove-recip="${r.id}" data-email="${r.email}">Remove</button></td>
+      </tr>`).join('') || `<tr><td colspan="4" class="empty">No recipients yet.</td></tr>`;
+    document.querySelectorAll('[data-toggle-recip]').forEach(cb => cb.addEventListener('change', async () => {
+      const recips = await getReportEmails();
+      const r = recips.find(x=>x.id===cb.dataset.toggleRecip);
+      await updateReportEmail(r.id, r.name, r.email, cb.checked);
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Monthly Report Configuration Updated', status:'Success', details:`${r.email} ${cb.checked?'enabled':'disabled'}` });
+      renderReportTable(); renderAudit();
+    }));
+    document.querySelectorAll('[data-remove-recip]').forEach(btn => btn.addEventListener('click', async () => {
+      await removeReportEmail(btn.dataset.removeRecip);
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Monthly Report Configuration Updated', status:'Success', details:`Removed ${btn.dataset.email}` });
+      renderReportTable(); renderAudit();
+    }));
+  }
+  document.getElementById('reportForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const email = reEmail.value.trim();
+    if(!email) return;
+    await addReportEmail(reName.value.trim() || email, email);
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Monthly Report Configuration Updated', status:'Success', details:`Added ${email}` });
+    this.reset(); renderReportTable(); renderAudit();
+    toast('Recipient added.');
+  });
+  document.getElementById('previewReport').addEventListener('click', async () => {
+    const now = new Date();
+    const monthBookings = (await getBookings()).filter(b => new Date(b.date).getMonth() === now.getMonth());
+    const byDept = {};
+    monthBookings.forEach(b => byDept[b.dept] = (byDept[b.dept]||0)+1);
+    const recips = (await getReportEmails()).filter(r=>r.enabled).map(r=>r.email);
+    const pre = document.getElementById('reportPreview');
+    pre.style.display = 'block';
+    pre.textContent =
+`NIHSS Driver Booking — Monthly Report (${now.toLocaleDateString('en-GB',{month:'long', year:'numeric'})})
+Recipients: ${recips.join(', ') || 'none enabled'}
+
+Total trips: ${monthBookings.length}
+Pending: ${monthBookings.filter(b=>b.status==='Pending').length}
+Accepted: ${monthBookings.filter(b=>b.status==='Accepted').length}
+Denied: ${monthBookings.filter(b=>b.status==='Denied'||b.status==='Declined').length}
+Rescheduled: ${monthBookings.filter(b=>b.status==='Rescheduled').length}
+
+By department:
+${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
+    simulateEmail(recips.join(', '), 'NIHSS Monthly Driver Booking Report');
+    toast('Preview generated (simulated send to recipients).');
+  });
+
+  /* ---- Dashboard view toggles ---- */
+  const VIEW_FIELDS = ['Department','Contact Number','Purpose of Trip','Notes'];
+  function renderToggles(){
+    const settings = getViewSettings(VIEW_FIELDS.reduce((a,f)=>(a[f]=true,a),{}));
+    document.getElementById('viewToggles').innerHTML = VIEW_FIELDS.map(f => `
+      <label style="display:flex;align-items:center;gap:8px;font-weight:500;">
+        <input type="checkbox" style="width:auto;margin:0;" data-field="${f}" ${settings[f]?'checked':''}> ${f}
+      </label>`).join('');
+    document.querySelectorAll('[data-field]').forEach(cb => cb.addEventListener('change', async () => {
+      const s = getViewSettings(VIEW_FIELDS.reduce((a,f)=>(a[f]=true,a),{}));
+      s[cb.dataset.field] = cb.checked;
+      setViewSettings(s);
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Dashboard View Updated', status:'Success', details:`${cb.dataset.field} ${cb.checked?'shown':'hidden'}` });
+      renderAudit();
+    }));
+  }
+
+  /* ---- Audit trail ---- */
+  let auditCache = [];
+  async function renderAudit(){
+    auditCache = await getAuditLog();
+    applyAuditFilters();
+  }
+  function applyAuditFilters(){
+    const q = document.getElementById('auditSearch').value.toLowerCase();
+    const action = document.getElementById('auditAction').value;
+    const status = document.getElementById('auditStatus').value;
+    let rows = auditCache;
+    if(action) rows = rows.filter(a=>a.action===action);
+    if(status) rows = rows.filter(a=>a.status===status);
+    if(q) rows = rows.filter(a => `${a.username} ${a.full_name} ${a.action} ${a.details}`.toLowerCase().includes(q));
+    document.querySelector('#auditTable tbody').innerHTML = rows.length ? rows.map(a => `
+      <tr>
+        <td class="mono">${new Date(a.at).toLocaleString()}</td>
+        <td>${a.username||'—'}</td><td>${a.full_name||'—'}</td><td>${a.role||'—'}</td>
+        <td class="mono">${a.ip_address||'—'}</td><td>${a.action}</td>
+        <td><span class="badge ${a.status==='Success'?'badge-accepted':'badge-declined'}">${a.status}</span></td>
+        <td>${a.details||''}</td>
+      </tr>`).join('') : `<tr><td colspan="8" class="empty">No matching activity.</td></tr>`;
+  }
+  document.getElementById('auditSearch').addEventListener('input', applyAuditFilters);
+  document.getElementById('auditAction').addEventListener('change', applyAuditFilters);
+  document.getElementById('auditStatus').addEventListener('change', applyAuditFilters);
+  document.getElementById('exportAudit').addEventListener('click', () => {
+    const csv = auditToCSV(auditCache);
+    const blob = new Blob([csv], { type:'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `nihss-audit-log-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  });
+
+  renderSummary(); renderPending(); renderDrivers(); renderMgmt(); renderReportTable(); renderToggles(); renderAudit();
+}
+</script>
+</body>
+</html>

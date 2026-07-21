@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book the Driver — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="index.html">
+      <img src="assets/logo.png" alt="NIHSS logo">
+      <span class="name">National Institute of<br>Health and Social Studies<small>Driver Booking</small></span>
+    </a>
+    <nav class="nav-links">
+      <a class="btn btn-gold btn-sm" href="driver-login.html">🚐 Driver Login</a>
+    </nav>
+  </div>
+</header>
+<div class="gold-rule"></div>
+
+<section class="section">
+  <div class="wrap">
+    <span class="eyebrow">Learning to Care · Transport Desk</span>
+    <h1>Book the school driver</h1>
+    <p style="max-width:560px;font-size:1.05rem;">Replacing the paper request slip — check when the driver is free, then submit your trip details below. You'll get an email as soon as it's actioned.</p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="wrap">
+    <h2 style="font-size:1.4rem;margin-bottom:20px;">How it works</h2>
+    <div class="how-grid">
+      <div class="how-card">
+        <div class="how-icon" style="--accent:var(--gold);--accent-bg:var(--gold-light);">📅</div>
+        <h3>1. Check Availability</h3>
+        <p>See whether the driver is free on the date and time you need.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon" style="--accent:var(--green);--accent-bg:var(--green-bg);">🚗</div>
+        <h3>2. Request Driver</h3>
+        <p>Fill in and submit your driver booking request.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon" style="--accent:var(--teal);--accent-bg:var(--teal-bg);">✅</div>
+        <h3>3. Approval Process</h3>
+        <p>The driver or an authorised management user reviews it and can accept, deny, or reschedule.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon" style="--accent:var(--plum);--accent-bg:var(--plum-bg);">✉️</div>
+        <h3>4. Receive Notification</h3>
+        <p>You automatically get an email confirming whether it's accepted, denied, or rescheduled.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="wrap">
+    <div class="card">
+      <div class="panel-header">
+        <div>
+          <span class="eyebrow">Step 1</span>
+          <h3 style="margin:0;"><span class="step-chip">1</span>Check availability</h3>
+        </div>
+        <input type="date" id="checkDate" style="width:auto;margin:0;">
+      </div>
+      <div class="day-rail">
+        <div class="rail-track"></div>
+        <div class="rail-hours"></div>
+      </div>
+      <p class="hint" style="margin-top:12px;">Gold blocks are already booked and accepted. Anything else on the strip is open.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="wrap">
+    <div class="card" style="max-width:720px;">
+      <span class="eyebrow">Step 2</span>
+      <h3><span class="step-chip">2</span>Request the driver</h3>
+      <form id="bookingForm">
+        <div class="field-row">
+          <div><label for="date">Date</label><input type="date" id="date" required></div>
+          <div><label for="dayField">Day</label><input type="text" id="dayField" readonly placeholder="Auto-filled from date"></div>
+        </div>
+        <div class="field-row">
+          <div><label for="name">Requester Name</label><input type="text" id="name" required placeholder="Your full name"></div>
+          <div><label for="dept">Department / Section</label><input type="text" id="dept" required placeholder="e.g. Nursing"></div>
+        </div>
+        <div class="field-row">
+          <div><label for="contact">Contact Number</label><input type="tel" id="contact" required></div>
+          <div><label for="email">Email Address</label><input type="email" id="email" required placeholder="for the confirmation email"></div>
+        </div>
+        <div class="field-row">
+          <div><label for="location">Pickup Location</label><input type="text" id="location" required placeholder="Where the driver picks you up"></div>
+          <div><label for="destination">Destination</label><input type="text" id="destination" required placeholder="Where you're going"></div>
+        </div>
+        <div class="field-row">
+          <div><label for="timeLeave">Time Leaving</label><input type="time" id="timeLeave" required></div>
+          <div><label for="timeCollect">Time to be Collected</label><input type="time" id="timeCollect" required></div>
+        </div>
+        <label for="purpose">Purpose of Trip</label>
+        <select id="purpose" required>
+          <option value="">Select a reason</option>
+          <option>Meeting</option><option>Errand</option><option>Delivery</option>
+          <option>Medical</option><option>Official visit</option><option>Other</option>
+        </select>
+        <label for="remarks">Notes</label>
+        <textarea id="remarks" rows="3" placeholder="Anything the driver should know"></textarea>
+        <div id="conflictNote" style="display:none;background:var(--terracotta-bg);color:var(--terracotta);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:.85rem;"></div>
+        <button type="submit" class="btn btn-gold btn-block">Submit Request</button>
+      </form>
+      <div id="confirmMsg" style="display:none;background:var(--green-bg);color:var(--green);border-radius:8px;padding:14px 16px;margin-top:16px;font-size:.9rem;"></div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="wrap" style="flex-direction:column;gap:14px;align-items:flex-start;">
+    <div style="display:flex;gap:10px;">
+      <a class="btn btn-outline btn-sm" href="management-login.html">📊 Management Login</a>
+      <a class="btn btn-outline btn-sm" href="admin-login.html">⚙️ Admin Login</a>
+    </div>
+    <span>© <span id="year"></span> National Institute of Health and Social Studies</span>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const checkDate = document.getElementById('checkDate');
+const today = new Date().toISOString().slice(0,10);
+checkDate.value = today;
+const railBox = document.querySelector('.day-rail');
+async function refreshRail(){ await renderDayRail(railBox, checkDate.value); }
+checkDate.addEventListener('change', refreshRail);
+refreshRail();
+
+const dateField = document.getElementById('date');
+dateField.value = today;
+dateField.addEventListener('change', () => {
+  document.getElementById('dayField').value = dateField.value ? dayName(dateField.value) : '';
+});
+document.getElementById('dayField').value = dayName(today);
+
+document.getElementById('bookingForm').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const data = {
+    date: dateField.value, day: dayName(dateField.value),
+    name: document.getElementById('name').value,
+    dept: document.getElementById('dept').value,
+    contact: document.getElementById('contact').value,
+    email: document.getElementById('email').value,
+    location: document.getElementById('location').value,
+    destination: document.getElementById('destination').value,
+    timeLeave: document.getElementById('timeLeave').value,
+    timeCollect: document.getElementById('timeCollect').value,
+    purpose: document.getElementById('purpose').value,
+    remarks: document.getElementById('remarks').value
+  };
+  const note = document.getElementById('conflictNote');
+  if(timeToMin(data.timeCollect) <= timeToMin(data.timeLeave)){
+    note.style.display='block';
+    note.textContent = 'Time to be collected must be after time leaving.';
+    return;
+  }
+  const conflicts = await findConflicts(data.date, data.timeLeave, data.timeCollect, null);
+  if(conflicts.length){
+    note.style.display='block';
+    note.textContent = `The driver is already booked ${conflicts[0].timeLeave}–${conflicts[0].timeCollect} on this date. Please choose another time.`;
+    return;
+  }
+  note.style.display='none';
+  const { booking } = await addBooking(data);
+  if(!booking) return;
+  document.getElementById('bookingForm').reset();
+  dateField.value = today; document.getElementById('dayField').value = dayName(today);
+  const confirm = document.getElementById('confirmMsg');
+  confirm.style.display='block';
+  confirm.textContent = `Request submitted for ${booking.date}, ${booking.timeLeave}–${booking.timeCollect}. You'll receive an email once it's actioned.`;
+  refreshRail();
+});
+</script>
+</body>
+</html>

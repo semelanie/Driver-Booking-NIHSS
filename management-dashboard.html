@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Management Dashboard — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-management">
+<header class="site-header"><div class="bar">
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="NIHSS logo"><span class="name">NIHSS<small>Management Dashboard</small></span></a><span class="portal-tag">📊 Management</span>
+  <div class="top-actions" style="margin:0;">
+    <span class="userchip" id="whoami"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn">Log Out</button>
+  </div>
+</div></header>
+<div class="gold-rule"></div>
+
+<div class="wrap section">
+  <div class="stats-row" id="stats"></div>
+
+  <div id="approverSection" style="display:none;">
+    <div class="section-title-row"><h3 style="margin:0;">🕓 Pending requests</h3></div>
+    <p class="hint" style="margin-top:-6px;">As a Level 2 (Approver) user you can accept, deny, or reschedule on the driver's behalf.</p>
+    <div id="pendingList" style="margin-bottom:30px;"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <div class="panel-header">
+      <div><span class="eyebrow">Driver schedule</span><h3 style="margin:0;">Day rail</h3></div>
+      <input type="date" id="railDate" style="width:auto;margin:0;">
+    </div>
+    <div class="day-rail"><div class="rail-track"></div><div class="rail-hours"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="panel-header">
+      <h3 style="margin:0;">Booking history</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <input type="text" id="searchBox" placeholder="Search name, department, location…" style="width:220px;margin:0;">
+        <select id="filterStatus" style="width:auto;margin:0;">
+          <option value="">All statuses</option>
+          <option>Pending</option><option>Accepted</option><option>Denied</option><option>Rescheduled</option>
+        </select>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="table">
+        <thead><tr><th>Date</th><th>Name</th><th>Dept</th><th>Time</th><th>Pickup → Destination</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Reschedule modal (Level 2 only) -->
+<div id="rescheduleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:380px;width:92%;">
+    <h3 style="margin-top:0;">Propose a new time</h3>
+    <label for="rDate">Date</label><input type="date" id="rDate">
+    <div class="field-row">
+      <div><label for="rLeave">Leaving</label><input type="time" id="rLeave"></div>
+      <div><label for="rCollect">Collected</label><input type="time" id="rCollect"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-gold btn-block" id="rConfirm">Send Reschedule</button>
+      <button class="btn btn-ghost btn-block" id="rCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+const session = requireRole('management');
+if(session){
+  document.getElementById('whoami').textContent = session.name + (isApprover(session) ? ' · Level 2 (Approver)' : ' · Level 1 (View Only)');
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  if(isApprover(session)) document.getElementById('approverSection').style.display = 'block';
+
+  const railBox = document.querySelector('.day-rail');
+  const railDate = document.getElementById('railDate');
+  railDate.value = new Date().toISOString().slice(0,10);
+  async function refreshRail(){ await renderDayRail(railBox, railDate.value); }
+  railDate.addEventListener('change', refreshRail);
+  refreshRail();
+
+  function badge(status){
+    const map = { Pending:'badge-pending', Accepted:'badge-accepted', Denied:'badge-declined', Declined:'badge-declined', Rescheduled:'badge-pending', Completed:'badge-completed' };
+    return `<span class="badge ${map[status]||''}">${status}</span>`;
+  }
+
+  async function renderStats(){
+    const all = await getBookings();
+    const now = new Date();
+    const monthBookings = all.filter(b => new Date(b.date).getMonth() === now.getMonth());
+    document.getElementById('stats').innerHTML = `
+      <div class="stat"><div class="num">${all.length}</div><div class="label">Total requests</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Pending').length}</div><div class="label">Pending</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Accepted').length}</div><div class="label">Approved</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Denied'||b.status==='Declined').length}</div><div class="label">Denied</div></div>
+    `;
+  }
+
+  /* ---- Approver pending queue (Level 2 only) ---- */
+  let rescheduleTargetId = null;
+  function openReschedule(id){
+    rescheduleTargetId = id;
+    document.getElementById('rDate').value = new Date().toISOString().slice(0,10);
+    document.getElementById('rescheduleModal').style.display = 'flex';
+  }
+  document.getElementById('rCancel').addEventListener('click', () => {
+    document.getElementById('rescheduleModal').style.display = 'none';
+  });
+  document.getElementById('rConfirm').addEventListener('click', async () => {
+    const d = document.getElementById('rDate').value, l = document.getElementById('rLeave').value, c = document.getElementById('rCollect').value;
+    if(!d || !l || !c){ toast('Fill in the proposed date and times.'); return; }
+    await rescheduleBooking(rescheduleTargetId, d, l, c, session.name + ' (management)', session);
+    document.getElementById('rescheduleModal').style.display = 'none';
+    toast('Reschedule proposed — requestor emailed with the new time.');
+    refreshRail(); renderStats(); renderPending(); renderTable();
+  });
+
+  async function renderPending(){
+    if(!isApprover(session)) return;
+    const list = document.getElementById('pendingList');
+    const items = (await getBookings()).filter(b=>b.status==='Pending').sort((a,b)=>a.date.localeCompare(b.date));
+    list.innerHTML = items.length ? items.map(b => `
+      <div class="req-card">
+        <div class="req-top"><strong>${b.name} — ${b.dept}</strong><span class="badge badge-pending">Pending</span></div>
+        <div class="req-meta">${b.day}, ${b.date} · ${b.timeLeave}–${b.timeCollect} · ${b.location} → ${b.destination||'—'}</div>
+        <div class="req-actions">
+          <button class="btn btn-green btn-sm" data-accept="${b.id}">Accept</button>
+          <button class="btn btn-terracotta btn-sm" data-deny="${b.id}">Deny</button>
+          <button class="btn btn-outline btn-sm" data-reschedule="${b.id}">Reschedule</button>
+        </div>
+      </div>`).join('') : '<div class="empty">No pending requests.</div>';
+    list.querySelectorAll('[data-accept]').forEach(btn => btn.addEventListener('click', async () => {
+      await acceptBooking(btn.dataset.accept, session.name + ' (management)', session);
+      toast('Accepted.'); refreshRail(); renderStats(); renderPending(); renderTable();
+    }));
+    list.querySelectorAll('[data-deny]').forEach(btn => btn.addEventListener('click', async () => {
+      await denyBooking(btn.dataset.deny, session.name + ' (management)', session);
+      toast('Denied.'); renderStats(); renderPending(); renderTable();
+    }));
+    list.querySelectorAll('[data-reschedule]').forEach(btn => btn.addEventListener('click', () => openReschedule(btn.dataset.reschedule)));
+  }
+
+  async function renderTable(){
+    const statusF = document.getElementById('filterStatus').value;
+    const q = document.getElementById('searchBox').value.toLowerCase();
+    let rows = (await getBookings()).sort((a,b)=> b.date.localeCompare(a.date));
+    if(statusF) rows = rows.filter(b=>b.status===statusF);
+    if(q) rows = rows.filter(b => (b.name+b.dept+b.location+(b.destination||'')).toLowerCase().includes(q));
+    const tbody = document.querySelector('#table tbody');
+    tbody.innerHTML = rows.length ? rows.map(b => `
+      <tr>
+        <td>${b.date}</td><td>${b.name}</td><td>${b.dept}</td>
+        <td>${b.timeLeave}–${b.timeCollect}</td><td>${b.location} → ${b.destination||'—'}</td>
+        <td>${badge(b.status)}</td>
+      </tr>`).join('') : `<tr><td colspan="6" class="empty">No matching requests.</td></tr>`;
+  }
+
+  document.getElementById('filterStatus').addEventListener('change', renderTable);
+  document.getElementById('searchBox').addEventListener('input', renderTable);
+
+  renderStats(); renderPending(); renderTable();
+}
+</script>
+</body>
+</html>

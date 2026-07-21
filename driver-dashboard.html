@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Driver Dashboard — NIHSS</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-driver">
+<header class="site-header"><div class="bar">
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="NIHSS logo"><span class="name">NIHSS<small>Driver Dashboard</small></span></a><span class="portal-tag">🚐 Driver</span>
+  <div class="top-actions" style="margin:0;">
+    <span class="userchip" id="whoami"></span>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn">Log Out</button>
+  </div>
+</div></header>
+<div class="gold-rule"></div>
+
+<div class="wrap section">
+  <div class="stats-row" id="stats" style="margin-bottom:24px;"></div>
+
+  <div class="card" style="margin-bottom:24px;">
+    <div class="panel-header">
+      <div><span class="eyebrow">Today's schedule</span><h3 style="margin:0;">Day rail</h3></div>
+      <input type="date" id="railDate" style="width:auto;margin:0;">
+    </div>
+    <div class="day-rail"><div class="rail-track"></div><div class="rail-hours"></div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="queue">Booking Queue</div>
+    <div class="tab" data-tab="upcoming">Current &amp; Upcoming</div>
+    <div class="tab" data-tab="history">Booking History</div>
+    <div class="tab" data-tab="all">All Requests</div>
+  </div>
+  <div id="list"></div>
+</div>
+
+<!-- Reschedule modal -->
+<div id="rescheduleModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:380px;width:92%;">
+    <h3 style="margin-top:0;">Propose a new time</h3>
+    <label for="rDate">Date</label><input type="date" id="rDate">
+    <div class="field-row">
+      <div><label for="rLeave">Leaving</label><input type="time" id="rLeave"></div>
+      <div><label for="rCollect">Collected</label><input type="time" id="rCollect"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-gold btn-block" id="rConfirm">Send Reschedule</button>
+      <button class="btn btn-ghost btn-block" id="rCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+const session = requireRole('driver');
+if(session){
+  document.getElementById('whoami').textContent = session.name;
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  const railBox = document.querySelector('.day-rail');
+  const railDate = document.getElementById('railDate');
+  const todayISO = new Date().toISOString().slice(0,10);
+  railDate.value = todayISO;
+  async function refreshRail(){ await renderDayRail(railBox, railDate.value); }
+  railDate.addEventListener('change', refreshRail);
+  refreshRail();
+
+  let activeTab = 'queue';
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); activeTab = t.dataset.tab; render();
+  }));
+
+  function badge(status){
+    const map = { Pending:'badge-pending', Accepted:'badge-accepted', Denied:'badge-declined', Declined:'badge-declined', Rescheduled:'badge-pending', Completed:'badge-completed' };
+    return `<span class="badge ${map[status]||''}">${status}</span>`;
+  }
+
+  async function renderStats(){
+    const all = await getBookings();
+    document.getElementById('stats').innerHTML = `
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Pending').length}</div><div class="label">Pending</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Accepted' && b.date>=todayISO).length}</div><div class="label">Upcoming</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.status==='Accepted').length}</div><div class="label">Accepted total</div></div>
+      <div class="stat"><div class="num">${all.filter(b=>b.date<todayISO).length}</div><div class="label">In history</div></div>
+    `;
+  }
+
+  let rescheduleTargetId = null;
+  function openReschedule(id){
+    rescheduleTargetId = id;
+    document.getElementById('rDate').value = todayISO;
+    document.getElementById('rescheduleModal').style.display = 'flex';
+  }
+  document.getElementById('rCancel').addEventListener('click', () => {
+    document.getElementById('rescheduleModal').style.display = 'none';
+  });
+  document.getElementById('rConfirm').addEventListener('click', async () => {
+    const d = document.getElementById('rDate').value, l = document.getElementById('rLeave').value, c = document.getElementById('rCollect').value;
+    if(!d || !l || !c){ toast('Fill in the proposed date and times.'); return; }
+    await rescheduleBooking(rescheduleTargetId, d, l, c, session.name + ' (driver)', session);
+    document.getElementById('rescheduleModal').style.display = 'none';
+    toast('Reschedule proposed — requestor emailed with the new time.');
+    refreshRail(); renderStats(); render();
+  });
+
+  async function render(){
+    const list = document.getElementById('list');
+    let items = (await getBookings()).sort((a,b)=> a.date.localeCompare(b.date) || a.timeLeave.localeCompare(b.timeLeave));
+    if(activeTab==='queue') items = items.filter(b=>b.status==='Pending');
+    if(activeTab==='upcoming') items = items.filter(b=>b.status==='Accepted' && b.date>=todayISO);
+    if(activeTab==='history') items = items.filter(b=>b.date<todayISO || b.status==='Denied' || b.status==='Declined');
+    if(!items.length){ list.innerHTML = '<div class="empty">No requests here.</div>'; return; }
+    list.innerHTML = items.map(b => `
+      <div class="req-card">
+        <div class="req-top">
+          <strong>${b.name} — ${b.dept}</strong>
+          ${badge(b.status)}
+        </div>
+        <div class="req-meta">${b.day}, ${b.date} · ${b.timeLeave}–${b.timeCollect}</div>
+        <div class="req-meta">Pickup: ${b.location} → Destination: ${b.destination || '—'}</div>
+        <div class="req-meta">Purpose: ${b.purpose || '—'} · Contact: ${b.contact}</div>
+        ${b.remarks ? `<div class="req-meta">Notes: ${b.remarks}</div>` : ''}
+        ${b.status==='Rescheduled' ? `<div class="req-meta" style="color:var(--gold-deep);">Proposed: ${b.proposedDate} ${b.proposedTimeLeave}–${b.proposedTimeCollect}</div>` : ''}
+        ${b.status==='Pending' ? `
+        <div class="req-actions">
+          <button class="btn btn-green btn-sm" data-accept="${b.id}">Accept</button>
+          <button class="btn btn-terracotta btn-sm" data-deny="${b.id}">Deny</button>
+          <button class="btn btn-outline btn-sm" data-reschedule="${b.id}">Reschedule</button>
+        </div>` : b.acceptedBy ? `<div class="req-meta" style="margin-top:6px;">Actioned by ${b.acceptedBy}</div>` : ''}
+      </div>
+    `).join('');
+    list.querySelectorAll('[data-accept]').forEach(btn => btn.addEventListener('click', async () => {
+      await acceptBooking(btn.dataset.accept, session.name + ' (driver)', session);
+      toast('Accepted — confirmation email sent to requestor.');
+      refreshRail(); renderStats(); render();
+    }));
+    list.querySelectorAll('[data-deny]').forEach(btn => btn.addEventListener('click', async () => {
+      await denyBooking(btn.dataset.deny, session.name + ' (driver)', session);
+      toast('Request denied.');
+      renderStats(); render();
+    }));
+    list.querySelectorAll('[data-reschedule]').forEach(btn => btn.addEventListener('click', () => openReschedule(btn.dataset.reschedule)));
+  }
+  renderStats(); render();
+}
+</script>
+</body>
+</html>
