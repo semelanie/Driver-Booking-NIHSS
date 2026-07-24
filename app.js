@@ -104,13 +104,43 @@ async function getBookings(){
   return data.map(mapBooking);
 }
 
+/* ---------- Leg duration setting ----------
+   The driver isn't "busy" for the whole booking window — only for the
+   short drop-off leg (school → location) and the short pickup leg
+   (location → school) around it. In between, he's back at school and
+   free for other bookings. leg_minutes controls how long each of those
+   legs is assumed to take; adjust it from the Admin panel. */
+let __cachedLegMinutes = null;
+async function getLegMinutes(){
+  if(__cachedLegMinutes != null) return __cachedLegMinutes;
+  const { data, error } = await sb.from('app_settings').select('value').eq('key','leg_minutes').single();
+  __cachedLegMinutes = (!error && data) ? Number(data.value) : 30;
+  return __cachedLegMinutes;
+}
+async function setLegMinutes(minutes){
+  const { error } = await sb.from('app_settings').upsert({ key:'leg_minutes', value:String(minutes) });
+  if(!error) __cachedLegMinutes = Number(minutes);
+  return !error;
+}
+
+function legWindows(timeLeave, timeCollect, legMinutes){
+  const dl = timeToMin(timeLeave), dc = timeToMin(timeCollect);
+  return [
+    { label:'Drop-off', start: dl, end: dl + legMinutes },
+    { label:'Pick-up',  start: dc, end: dc + legMinutes }
+  ];
+}
+function windowsOverlap(a, b){ return Math.max(a.start,b.start) < Math.min(a.end,b.end); }
+
 async function findConflicts(date, timeLeave, timeCollect, excludeId){
+  const legMinutes = await getLegMinutes();
   const all = await getBookings();
-  const s = timeToMin(timeLeave), e = timeToMin(timeCollect);
-  return all.filter(b =>
-    b.date === date && b.status === 'Accepted' && b.id !== excludeId &&
-    Math.max(s, timeToMin(b.timeLeave)) < Math.min(e, timeToMin(b.timeCollect))
-  );
+  const candidate = legWindows(timeLeave, timeCollect, legMinutes);
+  return all.filter(b => {
+    if(b.date !== date || b.status !== 'Accepted' || b.id === excludeId) return false;
+    const existing = legWindows(b.timeLeave, b.timeCollect, legMinutes);
+    return candidate.some(cw => existing.some(ew => windowsOverlap(cw, ew)));
+  });
 }
 
 async function addBooking(data){
@@ -163,24 +193,49 @@ async function rescheduleBooking(id, newDate, newTimeLeave, newTimeCollect, byLa
   return b;
 }
 
-/* ---------- Day rail rendering (07:00–18:00 window) ---------- */
+/* ---------- Day rail rendering (07:00–18:00 window) ----------
+   Draws a short block for the drop-off leg and a separate short block
+   for the pickup leg — the gap between them is when the driver is back
+   at school and free for another booking. Each booking gets its own
+   colour (both of its legs share it) so it's easy to tell whose is
+   whose when several bookings sit close together on the same day. */
+const RAIL_PALETTE = [
+  { bg:'#F0DDA6', border:'#A66B2E', text:'#7A4D18' }, // gold
+  { bg:'#DCEFF1', border:'#2C7E8C', text:'#1F5861' }, // teal
+  { bg:'#E4EFDF', border:'#3F7A53', text:'#2C5A3C' }, // green
+  { bg:'#EDE1F1', border:'#7C4C8C', text:'#5B3667' }, // plum
+  { bg:'#F4E1D8', border:'#AE5A3E', text:'#7E3F2C' }, // terracotta
+  { bg:'#F9E1E1', border:'#B8544F', text:'#853A36' }, // rose
+  { bg:'#E1E7F4', border:'#4A5FA6', text:'#333F73' }  // indigo
+];
+function colorForBooking(id){
+  let hash = 0;
+  for(let i=0;i<id.length;i++){ hash = (hash * 31 + id.charCodeAt(i)) | 0; }
+  return RAIL_PALETTE[Math.abs(hash) % RAIL_PALETTE.length];
+}
+
 async function renderDayRail(container, date){
   const startH = 7, endH = 18;
+  const legMinutes = await getLegMinutes();
   const all = await getBookings();
   const bookings = all.filter(b => b.date === date && b.status === 'Accepted');
   const track = container.querySelector('.rail-track');
   track.innerHTML = '';
   bookings.forEach(b => {
-    const s = timeToMin(b.timeLeave), e = timeToMin(b.timeCollect);
-    const left = ((s - startH*60) / ((endH-startH)*60)) * 100;
-    const width = ((e - s) / ((endH-startH)*60)) * 100;
-    const el = document.createElement('div');
-    el.className = 'rail-block';
-    el.style.left = Math.max(0,left) + '%';
-    el.style.width = Math.max(3,width) + '%';
-    el.textContent = `${b.timeLeave}\u2013${b.timeCollect}`;
-    el.title = `Booked: ${b.name} (${b.location})`;
-    track.appendChild(el);
+    const c = colorForBooking(b.id);
+    legWindows(b.timeLeave, b.timeCollect, legMinutes).forEach(w => {
+      const left = ((w.start - startH*60) / ((endH-startH)*60)) * 100;
+      const width = ((w.end - w.start) / ((endH-startH)*60)) * 100;
+      const el = document.createElement('div');
+      el.className = 'rail-block';
+      el.style.left = Math.max(0,left) + '%';
+      el.style.width = Math.max(2,width) + '%';
+      el.style.background = c.bg;
+      el.style.borderColor = c.border;
+      el.style.color = c.text;
+      el.title = `${w.label}: ${b.name} (${b.location}${b.destination ? ' → ' + b.destination : ''})`;
+      track.appendChild(el);
+    });
   });
   const hours = container.querySelector('.rail-hours');
   if(hours){
@@ -279,6 +334,32 @@ async function resetManagerPassword(id, newPassword){
 async function toggleManagerActive(id){
   const { error } = await sb.rpc('toggle_manager_active', { p_id: id });
   if(error) console.error(error);
+}
+
+/* ---------- Admin accounts (admin only) ---------- */
+async function listAdmins(){
+  const { data, error } = await sb.rpc('list_admins');
+  if(error){ console.error(error); return []; }
+  return data;
+}
+async function createAdmin(name, username, password){
+  const { error } = await sb.rpc('create_admin', { p_name:name, p_username:username, p_password:password });
+  if(error){ console.error(error); toast('Could not create admin account — username may already exist.'); return false; }
+  return true;
+}
+async function toggleAdminActive(id){
+  const { error } = await sb.rpc('toggle_admin_active', { p_id: id });
+  if(error) console.error(error);
+}
+async function deleteAdmin(id){
+  const { error } = await sb.rpc('delete_admin', { p_id:id });
+  if(error){ console.error(error); toast('Could not delete admin.'); return false; }
+  return true;
+}
+async function resetAdminPassword(id, newPassword){
+  const { error } = await sb.rpc('reset_admin_password', { p_id:id, p_new_password:newPassword });
+  if(error){ console.error(error); toast('Could not reset password.'); return false; }
+  return true;
 }
 
 /* ---------- Monthly report recipients ---------- */
