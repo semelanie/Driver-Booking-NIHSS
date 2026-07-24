@@ -207,7 +207,7 @@ tbody tr:hover{ background:var(--cream-dim); }
 
 /* ---------- Misc ---------- */
 .section{ padding:48px 0; }
-.footer{ border-top:1px solid var(--paper-line); padding:28px 0; margin-top:40px; }
+.footer{ background:var(--cream); border-top:1px solid var(--paper-line); padding:28px 0; margin-top:40px; }
 .footer .wrap{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; font-size:.82rem; color:var(--grey); }
 .login-shell{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:40px 20px; background:
   radial-gradient(circle at 20% 10%, var(--accent-bg,var(--gold-light)) 0%, transparent 45%),
