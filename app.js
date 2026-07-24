@@ -178,8 +178,8 @@ async function setLegMinutes(minutes){
 function legWindows(timeLeave, timeCollect, legMinutes){
   const dl = timeToMin(timeLeave), dc = timeToMin(timeCollect);
   return [
-    { label:'Drop-off', start: dl, end: dl + legMinutes },
-    { label:'Pick-up',  start: dc, end: dc + legMinutes }
+    { label:'Pickup',   start: dl, end: dl + legMinutes },
+    { label:'Drop-off', start: dc, end: dc + legMinutes }
   ];
 }
 function windowsOverlap(a, b){ return Math.max(a.start,b.start) < Math.min(a.end,b.end); }
@@ -298,7 +298,7 @@ async function renderDayRail(container, date){
       el.style.background = c.bg;
       el.style.borderColor = c.border;
       el.style.color = c.text;
-      el.textContent = w.label === 'Drop-off' ? 'D' : 'P';
+      el.textContent = w.label === 'Pickup' ? 'P' : 'D';
       el.title = `${w.label}: ${b.name} (${b.location}${b.destination ? ' → ' + b.destination : ''})`;
       track.appendChild(el);
     });
