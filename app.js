@@ -282,7 +282,7 @@ async function listDrivers(){
 }
 async function createDriver(name, username, password, contact, vehicle){
   const { error } = await sb.rpc('create_driver', { p_name:name, p_username:username, p_password:password, p_contact:contact, p_vehicle:vehicle });
-  if(error){ console.error(error); toast('Could not create driver account — username may already exist.'); return false; }
+  if(error){ console.error(error); toast(`Could not create driver account: ${error.message}`); return false; }
   return true;
 }
 async function updateDriver(id, name, contact, vehicle){
@@ -313,7 +313,7 @@ async function listManagers(){
 }
 async function createManager(name, username, password, level){
   const { error } = await sb.rpc('create_manager', { p_name:name, p_username:username, p_password:password, p_level:Number(level) });
-  if(error){ console.error(error); toast('Could not create account — username may already exist.'); return false; }
+  if(error){ console.error(error); toast(`Could not create account: ${error.message}`); return false; }
   return true;
 }
 async function updateManager(id, name, level){
@@ -344,7 +344,7 @@ async function listAdmins(){
 }
 async function createAdmin(name, username, password){
   const { error } = await sb.rpc('create_admin', { p_name:name, p_username:username, p_password:password });
-  if(error){ console.error(error); toast('Could not create admin account — username may already exist.'); return false; }
+  if(error){ console.error(error); toast(`Could not create admin account: ${error.message}`); return false; }
   return true;
 }
 async function toggleAdminActive(id){
