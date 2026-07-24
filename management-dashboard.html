@@ -18,9 +18,9 @@
 <div class="wrap section">
   <div class="stats-row" id="stats"></div>
 
-  <div id="approverSection" style="display:none;">
-    <div class="section-title-row"><h3 style="margin:0;">🕓 Pending requests</h3></div>
-    <p class="hint" style="margin-top:-6px;">As a Level 2 (Approver) user you can accept, deny, or reschedule on the driver's behalf.</p>
+  <div id="approverSection">
+    <div class="section-title-row"><h3 style="margin:0;">🕓 Booking queue</h3></div>
+    <p class="hint" style="margin-top:-6px;" id="queueHint">As a Level 2 (Approver) user you can accept, deny, or reschedule on the driver's behalf.</p>
     <div id="pendingList" style="margin-bottom:30px;"></div>
   </div>
 
@@ -41,6 +41,7 @@
           <option value="">All statuses</option>
           <option>Pending</option><option>Accepted</option><option>Denied</option><option>Rescheduled</option>
         </select>
+        <button class="btn btn-ghost btn-sm" id="exportBookings">Export CSV / Excel</button>
       </div>
     </div>
     <div style="overflow-x:auto;">
@@ -75,7 +76,9 @@ const session = requireRole('management');
 if(session){
   document.getElementById('whoami').textContent = session.name + (isApprover(session) ? ' · Level 2 (Approver)' : ' · Level 1 (View Only)');
   document.getElementById('logoutBtn').addEventListener('click', logout);
-  if(isApprover(session)) document.getElementById('approverSection').style.display = 'block';
+  if(!isApprover(session)){
+    document.getElementById('queueHint').textContent = 'View only — Level 1 users can see the queue but cannot accept, deny, or reschedule.';
+  }
 
   const railBox = document.querySelector('.day-rail');
   const railDate = document.getElementById('railDate');
@@ -121,19 +124,21 @@ if(session){
   });
 
   async function renderPending(){
-    if(!isApprover(session)) return;
     const list = document.getElementById('pendingList');
     const items = (await getBookings()).filter(b=>b.status==='Pending').sort((a,b)=>a.date.localeCompare(b.date));
+    const canAct = isApprover(session);
     list.innerHTML = items.length ? items.map(b => `
       <div class="req-card">
         <div class="req-top"><strong>${b.name} — ${b.dept}</strong><span class="badge badge-pending">Pending</span></div>
         <div class="req-meta">${b.day}, ${b.date} · ${b.timeLeave}–${b.timeCollect} · ${b.location} → ${b.destination||'—'}</div>
+        ${canAct ? `
         <div class="req-actions">
           <button class="btn btn-green btn-sm" data-accept="${b.id}">Accept</button>
           <button class="btn btn-terracotta btn-sm" data-deny="${b.id}">Deny</button>
           <button class="btn btn-outline btn-sm" data-reschedule="${b.id}">Reschedule</button>
-        </div>
+        </div>` : ''}
       </div>`).join('') : '<div class="empty">No pending requests.</div>';
+    if(!canAct) return;
     list.querySelectorAll('[data-accept]').forEach(btn => btn.addEventListener('click', async () => {
       await acceptBooking(btn.dataset.accept, session.name + ' (management)', session);
       toast('Accepted.'); refreshRail(); renderStats(); renderPending(); renderTable();
@@ -145,12 +150,14 @@ if(session){
     list.querySelectorAll('[data-reschedule]').forEach(btn => btn.addEventListener('click', () => openReschedule(btn.dataset.reschedule)));
   }
 
+  let currentRows = [];
   async function renderTable(){
     const statusF = document.getElementById('filterStatus').value;
     const q = document.getElementById('searchBox').value.toLowerCase();
     let rows = (await getBookings()).sort((a,b)=> b.date.localeCompare(a.date));
     if(statusF) rows = rows.filter(b=>b.status===statusF);
     if(q) rows = rows.filter(b => (b.name+b.dept+b.location+(b.destination||'')).toLowerCase().includes(q));
+    currentRows = rows;
     const tbody = document.querySelector('#table tbody');
     tbody.innerHTML = rows.length ? rows.map(b => `
       <tr>
@@ -159,6 +166,15 @@ if(session){
         <td>${badge(b.status)}</td>
       </tr>`).join('') : `<tr><td colspan="6" class="empty">No matching requests.</td></tr>`;
   }
+
+  document.getElementById('exportBookings').addEventListener('click', () => {
+    const csv = bookingsToCSV(currentRows);
+    const blob = new Blob([csv], { type:'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `nihss-bookings-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  });
 
   document.getElementById('filterStatus').addEventListener('change', renderTable);
   document.getElementById('searchBox').addEventListener('input', renderTable);

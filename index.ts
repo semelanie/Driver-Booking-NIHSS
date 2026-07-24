@@ -9,7 +9,7 @@
 import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const FROM_ADDRESS = "NIHSS Driver Booking <bookings@your-verified-domain.sc>";
+const FROM_ADDRESS = "NIHSS Driver Booking <support@databytes.sc>";
 
 serve(async (req) => {
   try {

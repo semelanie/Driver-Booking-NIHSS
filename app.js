@@ -29,9 +29,61 @@ function toast(msg){
   window.__toastT = setTimeout(()=> el.classList.remove('show'), 3200);
 }
 
-/* ---------- Simulated email ----------
-   Real sending needs a backend (see supabase/functions/send-email in the
-   project — deploy it with a Resend API key to make this actually send). */
+/* ---------- Email templates ----------
+   These build the subject + HTML body for each booking event. Once you
+   deploy supabase/functions/send-email (see that file for instructions),
+   sendBookingEmail() below will automatically start sending these for
+   real — no other code changes needed. Until then, it logs the subject
+   and a link is NOT sent; nothing goes out. */
+function emailTemplate(type, b){
+  const head = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;">
+    <div style="background:#A66B2E;color:#fff;padding:16px 20px;border-radius:8px 8px 0 0;">
+      <strong style="font-size:16px;">NIHSS Driver Booking</strong>
+    </div>
+    <div style="border:1px solid #EAD9A6;border-top:none;border-radius:0 0 8px 8px;padding:20px;color:#221E16;">`;
+  const foot = `<p style="color:#8B8676;font-size:12px;margin-top:24px;">This is an automated message from the NIHSS Driver Booking system. Please don't reply directly to this email.</p>
+    </div></div>`;
+  const details = `<table style="border-collapse:collapse;margin:14px 0;font-size:14px;">
+      <tr><td style="padding:3px 14px 3px 0;color:#8B8676;">Date</td><td>${b.date}</td></tr>
+      <tr><td style="padding:3px 14px 3px 0;color:#8B8676;">Pickup</td><td>${b.location||'—'}</td></tr>
+      <tr><td style="padding:3px 14px 3px 0;color:#8B8676;">Destination</td><td>${b.destination||'—'}</td></tr>
+      <tr><td style="padding:3px 14px 3px 0;color:#8B8676;">Leaving</td><td>${b.timeLeave}</td></tr>
+      <tr><td style="padding:3px 14px 3px 0;color:#8B8676;">Collected</td><td>${b.timeCollect}</td></tr>
+    </table>`;
+
+  if(type === 'submitted') return {
+    subject: `Booking request received — ${b.date}, ${b.timeLeave}–${b.timeCollect}`,
+    html: `${head}<p>Hi ${b.name},</p><p>We've received your driver request for <strong>${b.date}</strong>. You'll get another email as soon as it's accepted, denied, or rescheduled.</p>${details}${foot}`
+  };
+  if(type === 'accepted') return {
+    subject: `Booking accepted — ${b.date}, ${b.timeLeave}–${b.timeCollect}`,
+    html: `${head}<p>Hi ${b.name},</p><p>Your driver request for <strong>${b.date}</strong> has been <strong style="color:#3F7A53;">accepted</strong>.</p>${details}<p>See you then.</p>${foot}`
+  };
+  if(type === 'denied') return {
+    subject: `Booking denied — ${b.date}, ${b.timeLeave}–${b.timeCollect}`,
+    html: `${head}<p>Hi ${b.name},</p><p>Unfortunately your driver request for <strong>${b.date}</strong> (${b.timeLeave}–${b.timeCollect}) could not be accommodated.</p><p>Please get in touch if you'd like to arrange an alternative time.</p>${foot}`
+  };
+  if(type === 'rescheduled') return {
+    subject: `Booking rescheduled — new time proposed for ${b.date}`,
+    html: `${head}<p>Hi ${b.name},</p><p>Your driver request originally for <strong>${b.date}</strong> (${b.timeLeave}–${b.timeCollect}) has been <strong style="color:#A66B2E;">rescheduled</strong>.</p>
+      <p style="background:#F0DDA6;padding:10px 14px;border-radius:6px;"><strong>Proposed new time:</strong> ${b.proposedDate}, ${b.proposedTimeLeave}–${b.proposedTimeCollect}</p>
+      <p>Please get in touch if this doesn't work for you.</p>${foot}`
+  };
+}
+
+/* Tries the real send-email Edge Function; falls back to a console log
+   (no email actually sent) if it isn't deployed yet or the call fails. */
+async function sendBookingEmail(to, type, booking){
+  const { subject, html } = emailTemplate(type, booking);
+  try{
+    const { error } = await sb.functions.invoke('send-email', { body: { to, subject, html } });
+    if(error) throw error;
+  }catch(e){
+    console.log(`[simulated email — deploy supabase/functions/send-email to send for real] To: ${to} | Subject: ${subject}`);
+  }
+}
+
+/* ---------- Simulated email fallback (used only if a template isn't relevant) ---------- */
 function simulateEmail(to, subject, body){
   console.log(`[simulated email] To: ${to} | Subject: ${subject}${body ? ' | ' + body : ''}`);
 }
@@ -153,6 +205,7 @@ async function addBooking(data){
   }).select().single();
   if(error){ console.error(error); toast('Could not submit the request — please try again.'); return { booking:null, conflicts }; }
   const b = mapBooking(inserted);
+  await sendBookingEmail(b.email, 'submitted', b);
   await logAudit({ action:'Booking Created', status:'Success', details:`${b.name} requested ${b.date} ${b.timeLeave}-${b.timeCollect}` });
   return { booking: b, conflicts };
 }
@@ -163,7 +216,7 @@ async function acceptBooking(id, acceptedByLabel, actorSession){
     .eq('id', id).select().single();
   if(error){ console.error(error); toast('Could not accept the request.'); return null; }
   const b = mapBooking(data);
-  simulateEmail(b.email, `Booking accepted — ${b.date} ${b.timeLeave} to ${b.timeCollect}`);
+  await sendBookingEmail(b.email, 'accepted', b);
   await logAudit({ username:actorSession?.username, fullName:actorSession?.name, role:actorSession?.role,
     action:'Booking Accepted', status:'Success', details:`${b.name} on ${b.date} (by ${acceptedByLabel})` });
   return b;
@@ -175,7 +228,7 @@ async function denyBooking(id, byLabel, actorSession){
     .eq('id', id).select().single();
   if(error){ console.error(error); toast('Could not deny the request.'); return null; }
   const b = mapBooking(data);
-  simulateEmail(b.email, `Booking denied — ${b.date} ${b.timeLeave} to ${b.timeCollect}`);
+  await sendBookingEmail(b.email, 'denied', b);
   await logAudit({ username:actorSession?.username, fullName:actorSession?.name, role:actorSession?.role,
     action:'Booking Denied', status:'Success', details:`${b.name} on ${b.date} (by ${byLabel})` });
   return b;
@@ -187,7 +240,7 @@ async function rescheduleBooking(id, newDate, newTimeLeave, newTimeCollect, byLa
     .eq('id', id).select().single();
   if(error){ console.error(error); toast('Could not reschedule the request.'); return null; }
   const b = mapBooking(data);
-  simulateEmail(b.email, `Booking rescheduled — proposed ${b.proposedDate} ${b.proposedTimeLeave} to ${b.proposedTimeCollect}`);
+  await sendBookingEmail(b.email, 'rescheduled', b);
   await logAudit({ username:actorSession?.username, fullName:actorSession?.name, role:actorSession?.role,
     action:'Booking Rescheduled', status:'Success', details:`${b.name}: proposed ${b.proposedDate} ${b.proposedTimeLeave}-${b.proposedTimeCollect} (by ${byLabel})` });
   return b;
@@ -221,11 +274,23 @@ async function renderDayRail(container, date){
   const bookings = all.filter(b => b.date === date && b.status === 'Accepted');
   const track = container.querySelector('.rail-track');
   track.innerHTML = '';
+  const pct = (mins) => ((mins - startH*60) / ((endH-startH)*60)) * 100;
   bookings.forEach(b => {
     const c = colorForBooking(b.id);
-    legWindows(b.timeLeave, b.timeCollect, legMinutes).forEach(w => {
-      const left = ((w.start - startH*60) / ((endH-startH)*60)) * 100;
-      const width = ((w.end - w.start) / ((endH-startH)*60)) * 100;
+    const [dropoff, pickup] = legWindows(b.timeLeave, b.timeCollect, legMinutes);
+
+    // Connector line between the two legs — makes it visually unmistakable
+    // that this drop-off (earlier) and pickup (later) belong to the same trip.
+    const connector = document.createElement('div');
+    connector.className = 'rail-connector';
+    connector.style.left = pct(dropoff.end) + '%';
+    connector.style.width = Math.max(0, pct(pickup.start) - pct(dropoff.end)) + '%';
+    connector.style.borderColor = c.border;
+    track.appendChild(connector);
+
+    [dropoff, pickup].forEach(w => {
+      const left = pct(w.start);
+      const width = pct(w.end) - pct(w.start);
       const el = document.createElement('div');
       el.className = 'rail-block';
       el.style.left = Math.max(0,left) + '%';
@@ -233,6 +298,7 @@ async function renderDayRail(container, date){
       el.style.background = c.bg;
       el.style.borderColor = c.border;
       el.style.color = c.text;
+      el.textContent = w.label === 'Drop-off' ? 'D' : 'P';
       el.title = `${w.label}: ${b.name} (${b.location}${b.destination ? ' → ' + b.destination : ''})`;
       track.appendChild(el);
     });
@@ -268,6 +334,19 @@ function auditToCSV(rows){
     const line = [
       new Date(r.at).toLocaleString(), r.username||'', r.full_name||'', r.role||'',
       r.ip_address||'', r.action, r.status, (r.details||'').replace(/,/g,';')
+    ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(',');
+    lines.push(line);
+  });
+  return lines.join('\n');
+}
+function bookingsToCSV(rows){
+  const header = ['Date','Day','Requester Name','Department','Contact','Email','Pickup Location','Destination','Time Leaving','Time Collected','Purpose','Status','Actioned By','Notes'];
+  const lines = [header.join(',')];
+  rows.forEach(b => {
+    const line = [
+      b.date, b.day||'', b.name, b.dept||'', b.contact||'', b.email||'',
+      b.location||'', b.destination||'', b.timeLeave, b.timeCollect,
+      b.purpose||'', b.status, b.acceptedBy||'', (b.remarks||'').replace(/,/g,';')
     ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(',');
     lines.push(line);
   });

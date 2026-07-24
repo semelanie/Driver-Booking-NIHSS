@@ -167,8 +167,11 @@ input:focus,select:focus,textarea:focus{ outline:2px solid var(--gold); outline-
 .rail-block{
   position:absolute; top:5px; bottom:5px; border-radius:5px;
   background:var(--gold-light); border:1px solid var(--gold);
-  font-family:var(--mono); font-size:.68rem; color:var(--gold-deep);
-  display:flex; align-items:center; padding:0 8px; overflow:hidden; white-space:nowrap;
+  font-family:var(--mono); font-size:.66rem; font-weight:700; color:var(--gold-deep);
+  display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap; z-index:2;
+}
+.rail-connector{
+  position:absolute; top:50%; height:0; border-top:2px dashed; opacity:.55; z-index:1;
 }
 .rail-block.free{ background:var(--green-bg); border-color:var(--green); color:var(--green); }
 
