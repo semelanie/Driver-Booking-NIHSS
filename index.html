@@ -71,7 +71,7 @@
         <div class="rail-track"></div>
         <div class="rail-hours"></div>
       </div>
-      <p class="hint" style="margin-top:12px;">Gold blocks are already booked and accepted. Anything else on the strip is open.</p>
+      <p class="hint" style="margin-top:12px;">Each gold sliver is a drop-off or pickup trip — the gaps in between are when the driver's back at school and free for another booking, even on the same day as someone who hasn't been collected yet.</p>
     </div>
   </div>
 </section>
@@ -172,7 +172,7 @@ document.getElementById('bookingForm').addEventListener('submit', async function
   const conflicts = await findConflicts(data.date, data.timeLeave, data.timeCollect, null);
   if(conflicts.length){
     note.style.display='block';
-    note.textContent = `The driver is already booked ${conflicts[0].timeLeave}–${conflicts[0].timeCollect} on this date. Please choose another time.`;
+    note.textContent = `The driver has a conflicting drop-off/pickup around this time (from the ${conflicts[0].timeLeave}–${conflicts[0].timeCollect} booking). Please choose another time.`;
     return;
   }
   note.style.display='none';

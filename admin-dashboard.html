@@ -23,6 +23,21 @@
   <p class="hint" style="margin-top:-6px;">Accept, deny, or reschedule on the driver's behalf — this updates the driver dashboard and emails the requestor exactly as if the driver had done it.</p>
   <div id="pendingList" style="margin-bottom:36px;"></div>
 
+  <div class="section-title-row"><h3 style="margin:0;">⚙️ Admin users</h3></div>
+  <p class="hint" style="margin-top:-6px;">Other people who should have full admin access. Be sparing with this — anyone here can manage every account and setting.</p>
+  <div class="card" style="margin-bottom:20px;">
+    <form id="adminForm" class="field-row" style="margin-bottom:0;">
+      <div><label>Name</label><input id="aName" required></div>
+      <div><label>Username</label><input id="aUser" required></div>
+      <div><label>Password</label><input id="aPass" type="password" required></div>
+      <div style="align-self:end;"><button class="btn btn-gold btn-block" type="submit">Create Admin</button></div>
+    </form>
+  </div>
+  <div class="card" style="margin-bottom:36px;">
+    <table><thead><tr><th>Name</th><th>Username</th><th>Status</th><th colspan="3"></th></tr></thead>
+    <tbody id="adminTable"></tbody></table>
+  </div>
+
   <div class="section-title-row"><h3 style="margin:0;">🚐 Driver accounts</h3></div>
   <div class="card" style="margin-bottom:20px;">
     <form id="driverForm" class="field-row" style="margin-bottom:0;">
@@ -70,6 +85,15 @@
     <p class="hint" style="margin-top:14px;margin-bottom:0;">Sending on the 1st of each month is simulated in this static build — see <span class="mono">supabase/functions/monthly-report</span> to deploy the real scheduled sender.</p>
     <button class="btn btn-ghost btn-sm" id="previewReport" style="margin-top:10px;">Preview this month's report</button>
     <pre id="reportPreview" style="display:none;background:var(--cream-dim);padding:14px;border-radius:8px;margin-top:12px;font-size:.8rem;white-space:pre-wrap;"></pre>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">🚦 Driver logistics</h3></div>
+  <div class="card" style="margin-bottom:36px;">
+    <p>The driver only takes each requestor out and comes back to school parking, then goes out again later to collect them — he isn't tied up for the whole time in between. This setting controls how long the app assumes each of those two short trips takes, which decides when the gold bar shows the driver as free.</p>
+    <div class="field-row" style="align-items:end;">
+      <div><label for="legMinutesInput">Minutes per drop-off / pickup leg</label><input type="number" id="legMinutesInput" min="5" max="120" step="5"></div>
+      <div><button class="btn btn-gold" id="saveLegMinutes" type="button">Save</button></div>
+    </div>
   </div>
 
   <div class="section-title-row"><h3 style="margin:0;">🎛️ Dashboard view settings</h3></div>
@@ -226,6 +250,40 @@ if(session){
     renderPending(); renderSummary(); renderAudit();
   });
 
+  /* ---- Admin accounts ---- */
+  async function renderAdmins(){
+    const admins = await listAdmins();
+    document.getElementById('adminTable').innerHTML = admins.map(a => `
+      <tr>
+        <td>${a.name}</td><td class="mono">${a.username}</td>
+        <td>${a.active===false ? '<span class="badge badge-declined">Inactive</span>' : '<span class="badge badge-accepted">Active</span>'}</td>
+        <td><button class="btn btn-ghost btn-sm" data-toggle-admin="${a.id}" data-active="${a.active}" data-username="${a.username}">${a.active===false?'Reactivate':'Deactivate'}</button></td>
+        <td><button class="btn btn-ghost btn-sm" data-pw-admin="${a.id}">Reset PW</button></td>
+        <td>${a.username===session.username ? '' : `<button class="btn btn-terracotta btn-sm" data-delete-admin="${a.id}" data-username="${a.username}">Delete</button>`}</td>
+      </tr>`).join('') || `<tr><td colspan="6" class="empty">No admin accounts yet.</td></tr>`;
+    document.querySelectorAll('[data-toggle-admin]').forEach(btn => btn.addEventListener('click', async () => {
+      await toggleAdminActive(btn.dataset.toggleAdmin);
+      const willBeActive = btn.dataset.active === 'false';
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action: willBeActive?'Admin Enabled':'Admin Disabled', status:'Success', details:btn.dataset.username });
+      renderAdmins(); renderSummary(); renderAudit();
+    }));
+    document.querySelectorAll('[data-pw-admin]').forEach(btn => btn.addEventListener('click', () => openPasswordReset('admin', btn.dataset.pwAdmin)));
+    document.querySelectorAll('[data-delete-admin]').forEach(btn => btn.addEventListener('click', async () => {
+      if(!confirm('Delete this admin account? This cannot be undone.')) return;
+      await deleteAdmin(btn.dataset.deleteAdmin);
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Admin Deleted', status:'Success', details:btn.dataset.username });
+      renderAdmins(); renderSummary(); renderAudit();
+    }));
+  }
+  document.getElementById('adminForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const ok = await createAdmin(aName.value, aUser.value, aPass.value);
+    if(!ok) return;
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Admin Created', status:'Success', details:aUser.value });
+    this.reset(); renderAdmins(); renderSummary(); renderAudit();
+    toast('Admin account created.');
+  });
+
   /* ---- Driver accounts ---- */
   let pwTarget = null; // { type:'driver'|'manager', id }
   document.getElementById('pwCancel').addEventListener('click', () => document.getElementById('pwModal').style.display='none');
@@ -233,8 +291,9 @@ if(session){
     const val = document.getElementById('pwNew').value.trim();
     if(!val){ toast('Enter a new password.'); return; }
     if(pwTarget.type === 'driver') await resetDriverPassword(pwTarget.id, val);
-    else await resetManagerPassword(pwTarget.id, val);
-    await logAudit({ username:session.username, fullName:session.name, role:'admin', action: pwTarget.type==='driver' ? 'Password Reset (Driver)' : 'Password Reset (Management)', status:'Success', details:pwTarget.id });
+    else if(pwTarget.type === 'manager') await resetManagerPassword(pwTarget.id, val);
+    else await resetAdminPassword(pwTarget.id, val);
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action: pwTarget.type==='driver' ? 'Password Reset (Driver)' : pwTarget.type==='manager' ? 'Password Reset (Management)' : 'Password Reset (Admin)', status:'Success', details:pwTarget.id });
     document.getElementById('pwModal').style.display='none';
     toast('Password reset.');
     renderAudit();
@@ -393,6 +452,20 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
     toast('Preview generated (simulated send to recipients).');
   });
 
+  /* ---- Driver logistics (leg duration) ---- */
+  async function renderLegMinutes(){
+    document.getElementById('legMinutesInput').value = await getLegMinutes();
+  }
+  document.getElementById('saveLegMinutes').addEventListener('click', async () => {
+    const val = Number(document.getElementById('legMinutesInput').value);
+    if(!val || val < 5){ toast('Enter a valid number of minutes.'); return; }
+    const ok = await setLegMinutes(val);
+    if(ok){
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Dashboard View Updated', status:'Success', details:`Leg duration set to ${val} minutes` });
+      toast('Leg duration updated.'); renderAudit();
+    }
+  });
+
   /* ---- Dashboard view toggles ---- */
   const VIEW_FIELDS = ['Department','Contact Number','Purpose of Trip','Notes'];
   function renderToggles(){
@@ -445,7 +518,7 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
     a.click();
   });
 
-  renderSummary(); renderPending(); renderDrivers(); renderMgmt(); renderReportTable(); renderToggles(); renderAudit();
+  renderSummary(); renderPending(); renderAdmins(); renderDrivers(); renderMgmt(); renderReportTable(); renderToggles(); renderAudit(); renderLegMinutes();
 }
 </script>
 </body>
