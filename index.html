@@ -23,15 +23,17 @@
 
 <section class="section">
   <div class="wrap">
-    <span class="eyebrow" id="heroEyebrow">Learning to Care · Transport Desk</span>
-    <h1 id="heroTitle">Book the school driver</h1>
-    <p id="heroSubtitle" style="max-width:560px;font-size:1.05rem;">Replacing the paper request slip — check when the driver is free, then submit your trip details below. You'll get an email as soon as it's actioned.</p>
+    <div class="text-backdrop">
+      <span class="eyebrow" id="heroEyebrow">Learning to Care · Transport Desk</span>
+      <h1 id="heroTitle">Book the school driver</h1>
+      <p id="heroSubtitle" style="max-width:560px;font-size:1.05rem;margin-bottom:0;">Replacing the paper request slip — check when the driver is free, then submit your trip details below. You'll get an email as soon as it's actioned.</p>
+    </div>
   </div>
 </section>
 
 <section class="section" style="padding-top:0;">
   <div class="wrap">
-    <h2 style="font-size:1.4rem;margin-bottom:20px;">How it works</h2>
+    <h2 class="text-backdrop" style="font-size:1.4rem;margin-bottom:20px;">How it works</h2>
     <div class="how-grid">
       <div class="how-card">
         <div class="how-icon" style="--accent:var(--gold);--accent-bg:var(--gold-light);">📅</div>
@@ -71,14 +73,14 @@
         <div class="rail-track"></div>
         <div class="rail-hours"></div>
       </div>
-      <p class="hint" style="margin-top:12px;">Each gold sliver is a drop-off or pickup trip — the gaps in between are when the driver's back at school and free for another booking, even on the same day as someone who hasn't been collected yet.</p>
+      <p class="hint" style="margin-top:12px;">Each gold sliver marks a pickup — one when the driver takes someone out, one later when he collects them — the gaps in between are when the driver's back at school and free for another booking, even on the same day as someone who hasn't been collected yet.</p>
     </div>
   </div>
 </section>
 
 <section class="section" style="padding-top:0;">
   <div class="wrap">
-    <div class="card" style="max-width:720px;">
+    <div class="card" style="max-width:720px;margin:0 auto;">
       <span class="eyebrow">Step 2</span>
       <h3><span class="step-chip">2</span>Request the driver</h3>
       <form id="bookingForm">
@@ -122,9 +124,9 @@
   <div class="wrap" style="flex-direction:column;gap:14px;align-items:flex-start;">
     <div style="display:flex;gap:10px;">
       <a class="btn btn-outline btn-sm" href="management-login.html">📊 Management Login</a>
-      <a class="btn btn-outline btn-sm" href="admin-login.html">⚙️ Admin Login</a>
     </div>
-    <span>© <span id="year"></span> <span id="footerOrgName">National Institute of Health and Social Studies</span></span>
+    <span>© <span id="year"></span> <span id="footerOrgName" class="footer-org-name">National Institute of Health and Social Studies</span></span>
+    <span class="footer-tagline" style="display:none;"></span>
   </div>
 </footer>
 
@@ -187,7 +189,7 @@ document.getElementById('bookingForm').addEventListener('submit', async function
   const conflicts = await findConflicts(data.date, data.timeLeave, data.timeCollect, null);
   if(conflicts.length){
     note.style.display='block';
-    note.textContent = `The driver has a conflicting drop-off/pickup around this time (from the ${conflicts[0].timeLeave}–${conflicts[0].timeCollect} booking). Please choose another time.`;
+    note.textContent = `The driver has a conflicting pickup around this time (from the ${conflicts[0].timeLeave}–${conflicts[0].timeCollect} booking). Please choose another time.`;
     return;
   }
   note.style.display='none';
