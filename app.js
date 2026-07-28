@@ -178,8 +178,8 @@ async function setLegMinutes(minutes){
 function legWindows(timeLeave, timeCollect, legMinutes){
   const dl = timeToMin(timeLeave), dc = timeToMin(timeCollect);
   return [
-    { label:'Pickup',   start: dl, end: dl + legMinutes },
-    { label:'Drop-off', start: dc, end: dc + legMinutes }
+    { label:'Pickup', sub:'outbound', start: dl, end: dl + legMinutes },
+    { label:'Pickup', sub:'return',   start: dc, end: dc + legMinutes }
   ];
 }
 function windowsOverlap(a, b){ return Math.max(a.start,b.start) < Math.min(a.end,b.end); }
@@ -298,8 +298,8 @@ async function renderDayRail(container, date){
       el.style.background = c.bg;
       el.style.borderColor = c.border;
       el.style.color = c.text;
-      el.textContent = w.label === 'Pickup' ? 'P' : 'D';
-      el.title = `${w.label}: ${b.name} (${b.location}${b.destination ? ' → ' + b.destination : ''})`;
+      el.textContent = 'P';
+      el.title = `Pickup (${w.sub}): ${b.name} (${b.location}${b.destination ? ' → ' + b.destination : ''})`;
       track.appendChild(el);
     });
   });
@@ -472,6 +472,34 @@ async function setSiteContent(key, value){
   const { error } = await sb.from('site_content').upsert({ key, value });
   if(error) console.error(error);
   return !error;
+}
+
+/* ---------- Image uploads (logo, background photo) ---------- */
+async function uploadSiteImage(file, keyPrefix){
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+  const path = `${keyPrefix}-${Date.now()}.${ext}`;
+  const { error } = await sb.storage.from('site-assets').upload(path, file, { upsert:true });
+  if(error){ console.error(error); toast(`Upload failed: ${error.message}`); return null; }
+  const { data } = sb.storage.from('site-assets').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+/* Applies any uploaded logo/background over the built-in defaults.
+   Runs automatically on every page (see the bottom of this file) so a
+   change made once in the admin panel shows up everywhere immediately. */
+async function applyBranding(){
+  try{
+    const c = await getSiteContent();
+    if(c.logo_url){ document.querySelectorAll('.brand img').forEach(img => { img.src = c.logo_url; }); }
+    if(c.background_image_url){ document.documentElement.style.setProperty('--bg-photo', `url(${c.background_image_url})`); }
+    if(c.footer_org_name){ document.querySelectorAll('.footer-org-name').forEach(el => { el.textContent = c.footer_org_name; }); }
+    if(c.footer_tagline){ document.querySelectorAll('.footer-tagline').forEach(el => { el.textContent = c.footer_tagline; el.style.display = ''; }); }
+  }catch(e){ console.error(e); }
+}
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', applyBranding);
+} else {
+  applyBranding();
 }
 
 /* ---------- Dashboard column visibility (cosmetic — kept local per browser) ---------- */
