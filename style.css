@@ -271,6 +271,24 @@ tbody tr:hover{ background:var(--cream-dim); }
   .top-actions{ flex-wrap:wrap; gap:8px; margin-bottom:14px; }
   .userchip{ font-size:.76rem; max-width:60vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .portal-tag{ font-size:.62rem; padding:2px 8px; }
+
+  /* iOS Safari zooms in on focus if an input's font-size is under 16px */
+  input, select, textarea{ font-size:16px; }
+
+  /* Accept/Deny/Reschedule row: wrap and let buttons fill the width instead of squeezing three across */
+  .req-actions{ flex-wrap:wrap; }
+  .req-actions .btn{ flex:1 1 auto; min-width:100px; }
+  .req-card{ padding:12px 14px; }
+  .req-card .req-top{ flex-wrap:wrap; gap:6px; }
+
+  /* Booking form: full-width date picker instead of a squeezed inline one,
+     comfortable spacing between stacked fields, larger tappable selects */
+  .panel-header input[type="date"]{ width:100%; margin-top:8px; }
+  .panel-header{ flex-direction:column; align-items:stretch; }
+  #bookingForm label{ margin-top:4px; }
+  #bookingForm input, #bookingForm select, #bookingForm textarea{ padding:12px; }
+  #deptContactWrap select{ margin-bottom:0; }
+  .hint{ font-size:.76rem; line-height:1.4; }
 }
 .how-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
 @media(max-width:900px){ .how-grid{ grid-template-columns:repeat(2,1fr); } }
