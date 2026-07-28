@@ -36,22 +36,22 @@
     <h2 class="text-backdrop" style="font-size:1.4rem;margin-bottom:20px;">How it works</h2>
     <div class="how-grid">
       <div class="how-card">
-        <div class="how-icon" style="--accent:var(--gold);--accent-bg:var(--gold-light);">📅</div>
+        <div class="how-icon" style="--accent:var(--gold);--accent-bg:var(--gold-light);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="15" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="15" r="1.2" fill="currentColor" stroke="none"/></svg></div>
         <h3 id="how1Title">1. Check Availability</h3>
         <p id="how1Desc">See whether the driver is free on the date and time you need.</p>
       </div>
       <div class="how-card">
-        <div class="how-icon" style="--accent:var(--green);--accent-bg:var(--green-bg);">🚗</div>
+        <div class="how-icon" style="--accent:var(--green);--accent-bg:var(--green-bg);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l1.6-4.8A2 2 0 0 1 6.5 7h11a2 2 0 0 1 1.9 1.2L21 13"/><rect x="2.5" y="13" width="19" height="6" rx="2"/><circle cx="7" cy="19" r="1.6" fill="currentColor" stroke="none"/><circle cx="17" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg></div>
         <h3 id="how2Title">2. Request Driver</h3>
         <p id="how2Desc">Fill in and submit your driver booking request.</p>
       </div>
       <div class="how-card">
-        <div class="how-icon" style="--accent:var(--teal);--accent-bg:var(--teal-bg);">✅</div>
+        <div class="how-icon" style="--accent:var(--teal);--accent-bg:var(--teal-bg);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg></div>
         <h3 id="how3Title">3. Approval Process</h3>
         <p id="how3Desc">The driver or an authorised management user reviews it and can accept, deny, or reschedule.</p>
       </div>
       <div class="how-card">
-        <div class="how-icon" style="--accent:var(--plum);--accent-bg:var(--plum-bg);">✉️</div>
+        <div class="how-icon" style="--accent:var(--plum);--accent-bg:var(--plum-bg);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg></div>
         <h3 id="how4Title">4. Receive Notification</h3>
         <p id="how4Desc">You automatically get an email confirming whether it's accepted, denied, or rescheduled.</p>
       </div>
@@ -90,7 +90,24 @@
         </div>
         <div class="field-row">
           <div><label for="name">Requester Name</label><input type="text" id="name" required placeholder="Your full name"></div>
-          <div><label for="dept">Department / Section</label><input type="text" id="dept" required placeholder="e.g. Nursing"></div>
+          <div>
+            <label for="dept">Department / Section</label>
+            <select id="dept" required>
+              <option value="">Select a department</option>
+              <option>Accounts</option>
+              <option>Administration</option>
+              <option>Director/Deputy</option>
+              <option>Laboratory</option>
+              <option>Learner Support Officer</option>
+              <option>Lecturer</option>
+              <option>Library</option>
+              <option>Quality Assurance</option>
+              <option>Reception</option>
+              <option>Registrar</option>
+              <option>Site &amp; Facility Officer</option>
+            </select>
+            <div id="deptContact" class="hint" style="display:none;margin-top:-10px;"></div>
+          </div>
         </div>
         <div class="field-row">
           <div><label for="contact">Contact Number</label><input type="tel" id="contact" required></div>
@@ -127,6 +144,7 @@
     </div>
     <span>© <span id="year"></span> <span id="footerOrgName" class="footer-org-name">National Institute of Health and Social Studies</span></span>
     <span class="footer-tagline" style="display:none;"></span>
+    <span style="font-size:.76rem;color:var(--grey);">Powered by Databytes Consultancy Pty Ltd</span>
   </div>
 </footer>
 
@@ -164,6 +182,19 @@ dateField.addEventListener('change', () => {
   document.getElementById('dayField').value = dateField.value ? dayName(dateField.value) : '';
 });
 document.getElementById('dayField').value = dayName(today);
+
+let deptContacts = {};
+getDepartmentContacts().then(map => { deptContacts = map; });
+document.getElementById('dept').addEventListener('change', function(){
+  const note = document.getElementById('deptContact');
+  const emails = deptContacts[this.value];
+  if(this.value && emails){
+    note.style.display = 'block';
+    note.textContent = `Staff contact for ${this.value}: ${emails}`;
+  } else {
+    note.style.display = 'none';
+  }
+});
 
 document.getElementById('bookingForm').addEventListener('submit', async function(e){
   e.preventDefault();
