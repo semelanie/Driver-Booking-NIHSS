@@ -67,6 +67,7 @@ function emailTemplate(type, b){
     subject: `Booking rescheduled — new time proposed for ${b.date}`,
     html: `${head}<p>Hi ${b.name},</p><p>Your driver request originally for <strong>${b.date}</strong> (${b.timeLeave}–${b.timeCollect}) has been <strong style="color:#A66B2E;">rescheduled</strong>.</p>
       <p style="background:#F0DDA6;padding:10px 14px;border-radius:6px;"><strong>Proposed new time:</strong> ${b.proposedDate}, ${b.proposedTimeLeave}–${b.proposedTimeCollect}</p>
+      ${b.rescheduleReason ? `<p><strong>Reason:</strong> ${b.rescheduleReason}</p>` : ''}
       <p>Please get in touch if this doesn't work for you.</p>${foot}`
   };
 }
@@ -146,7 +147,8 @@ function mapBooking(row){
     acceptedBy: row.accepted_by, submittedAt: row.submitted_at, acceptedAt: row.accepted_at,
     proposedDate: row.proposed_date,
     proposedTimeLeave: row.proposed_time_leave ? row.proposed_time_leave.slice(0,5) : null,
-    proposedTimeCollect: row.proposed_time_collect ? row.proposed_time_collect.slice(0,5) : null
+    proposedTimeCollect: row.proposed_time_collect ? row.proposed_time_collect.slice(0,5) : null,
+    rescheduleReason: row.reschedule_reason
   };
 }
 
@@ -234,15 +236,15 @@ async function denyBooking(id, byLabel, actorSession){
   return b;
 }
 
-async function rescheduleBooking(id, newDate, newTimeLeave, newTimeCollect, byLabel, actorSession){
+async function rescheduleBooking(id, newDate, newTimeLeave, newTimeCollect, reason, byLabel, actorSession){
   const { data, error } = await sb.from('bookings')
-    .update({ status:'Rescheduled', accepted_by:byLabel, proposed_date:newDate, proposed_time_leave:newTimeLeave, proposed_time_collect:newTimeCollect })
+    .update({ status:'Rescheduled', accepted_by:byLabel, proposed_date:newDate, proposed_time_leave:newTimeLeave, proposed_time_collect:newTimeCollect, reschedule_reason:reason })
     .eq('id', id).select().single();
   if(error){ console.error(error); toast('Could not reschedule the request.'); return null; }
   const b = mapBooking(data);
   await sendBookingEmail(b.email, 'rescheduled', b);
   await logAudit({ username:actorSession?.username, fullName:actorSession?.name, role:actorSession?.role,
-    action:'Booking Rescheduled', status:'Success', details:`${b.name}: proposed ${b.proposedDate} ${b.proposedTimeLeave}-${b.proposedTimeCollect} (by ${byLabel})` });
+    action:'Booking Rescheduled', status:'Success', details:`${b.name}: proposed ${b.proposedDate} ${b.proposedTimeLeave}-${b.proposedTimeCollect} (by ${byLabel}) — ${reason}` });
   return b;
 }
 
@@ -458,6 +460,20 @@ async function updateReportEmail(id, name, email, enabled){
 async function removeReportEmail(id){
   const { error } = await sb.from('report_emails').delete().eq('id', id);
   if(error) console.error(error);
+}
+
+/* ---------- Department contact emails (shown on the booking form) ---------- */
+async function getDepartmentContacts(){
+  const { data, error } = await sb.from('department_contacts').select('*');
+  if(error){ console.error(error); return {}; }
+  const map = {};
+  data.forEach(r => { map[r.department] = r.emails; });
+  return map;
+}
+async function setDepartmentContact(department, emails){
+  const { error } = await sb.from('department_contacts').upsert({ department, emails });
+  if(error) console.error(error);
+  return !error;
 }
 
 /* ---------- Editable site content (homepage copy) ---------- */
