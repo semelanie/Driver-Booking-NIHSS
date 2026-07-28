@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin Panel — NIHSS</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="theme-admin">
@@ -110,7 +111,31 @@
       <div><label for="scHow4Desc">Step 4 description</label><input id="scHow4Desc"></div>
     </div>
     <label for="scFooterOrgName">Footer organisation name</label><input id="scFooterOrgName">
+    <label for="scFooterTagline">Footer tagline (optional extra line)</label><input id="scFooterTagline" placeholder="e.g. a contact email or short note">
     <button class="btn btn-gold" id="saveSiteContent" type="button">Save Website Content</button>
+
+    <hr style="border:none;border-top:1px solid var(--paper-line);margin:24px 0;">
+
+    <h3 style="margin-top:0;">Images</h3>
+    <p class="hint" style="margin-top:-6px;">Uploads apply across the whole site immediately — no need to save separately.</p>
+    <div class="field-row">
+      <div>
+        <label>Site logo</label>
+        <img id="scLogoPreview" src="assets/logo.png" style="height:56px;width:56px;object-fit:contain;border:1px solid var(--paper-line);border-radius:8px;padding:4px;display:block;margin-bottom:8px;">
+        <input type="file" id="scLogoFile" accept="image/*">
+      </div>
+      <div>
+        <label>Background photo</label>
+        <div id="scBgPreview" style="height:56px;width:100px;border:1px solid var(--paper-line);border-radius:8px;background-size:cover;background-position:center;background-image:var(--bg-photo);margin-bottom:8px;"></div>
+        <input type="file" id="scBgFile" accept="image/*">
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title-row"><h3 style="margin:0;">📇 Department contacts</h3></div>
+  <div class="card" style="margin-bottom:36px;">
+    <p>Staff email(s) shown on the booking form when a department is selected. Separate multiple addresses with a comma.</p>
+    <div id="deptContactsList"></div>
   </div>
 
   <div class="section-title-row"><h3 style="margin:0;">🚦 Driver logistics</h3></div>
@@ -163,6 +188,8 @@
       <div><label for="rLeave">Leaving</label><input type="time" id="rLeave"></div>
       <div><label for="rCollect">Collected</label><input type="time" id="rCollect"></div>
     </div>
+    <label for="rReason">Reason for rescheduling</label>
+    <textarea id="rReason" rows="2" placeholder="Let the requestor know why"></textarea>
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-gold btn-block" id="rConfirm">Send Reschedule</button>
       <button class="btn btn-ghost btn-block" id="rCancel">Cancel</button>
@@ -262,6 +289,7 @@ if(session){
   function openReschedule(id){
     rescheduleTargetId = id;
     document.getElementById('rDate').value = new Date().toISOString().slice(0,10);
+    document.getElementById('rReason').value = '';
     document.getElementById('rescheduleModal').style.display = 'flex';
   }
   document.getElementById('rCancel').addEventListener('click', () => {
@@ -269,8 +297,10 @@ if(session){
   });
   document.getElementById('rConfirm').addEventListener('click', async () => {
     const d = document.getElementById('rDate').value, l = document.getElementById('rLeave').value, c = document.getElementById('rCollect').value;
+    const reason = document.getElementById('rReason').value.trim();
     if(!d || !l || !c){ toast('Fill in the proposed date and times.'); return; }
-    await rescheduleBooking(rescheduleTargetId, d, l, c, session.name + ' (admin)', session);
+    if(!reason){ toast('Please give a reason for rescheduling.'); return; }
+    await rescheduleBooking(rescheduleTargetId, d, l, c, reason, session.name + ' (admin)', session);
     document.getElementById('rescheduleModal').style.display = 'none';
     toast('Reschedule proposed — requestor emailed with the new time.');
     renderPending(); renderSummary(); renderAudit();
@@ -485,7 +515,7 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
     scHow2Title:'how2_title', scHow2Desc:'how2_desc',
     scHow3Title:'how3_title', scHow3Desc:'how3_desc',
     scHow4Title:'how4_title', scHow4Desc:'how4_desc',
-    scFooterOrgName:'footer_org_name'
+    scFooterOrgName:'footer_org_name', scFooterTagline:'footer_tagline'
   };
   async function renderSiteContent(){
     const c = await getSiteContent();
@@ -493,6 +523,7 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
       const el = document.getElementById(id);
       if(el && c[key] !== undefined) el.value = c[key];
     });
+    if(c.logo_url) document.getElementById('scLogoPreview').src = c.logo_url;
   }
   document.getElementById('saveSiteContent').addEventListener('click', async () => {
     for(const [id, key] of Object.entries(SC_FIELDS)){
@@ -502,6 +533,45 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
     toast('Website content updated — refresh the homepage to see it live.');
     renderAudit();
   });
+  document.getElementById('scLogoFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const url = await uploadSiteImage(file, 'logo');
+    if(!url) return;
+    await setSiteContent('logo_url', url);
+    document.getElementById('scLogoPreview').src = url;
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Website Content Updated', status:'Success', details:'Logo replaced' });
+    toast('Logo updated across the site.'); renderAudit();
+  });
+  document.getElementById('scBgFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const url = await uploadSiteImage(file, 'background');
+    if(!url) return;
+    await setSiteContent('background_image_url', url);
+    document.getElementById('scBgPreview').style.backgroundImage = `url(${url})`;
+    document.documentElement.style.setProperty('--bg-photo', `url(${url})`);
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Website Content Updated', status:'Success', details:'Background photo replaced' });
+    toast('Background photo updated across the site.'); renderAudit();
+  });
+
+  /* ---- Department contacts ---- */
+  const DEPARTMENTS = ['Accounts','Administration','Director/Deputy','Laboratory','Learner Support Officer','Lecturer','Library','Quality Assurance','Reception','Registrar','Site & Facility Officer'];
+  async function renderDeptContacts(){
+    const map = await getDepartmentContacts();
+    document.getElementById('deptContactsList').innerHTML = DEPARTMENTS.map(d => `
+      <div class="field-row" style="align-items:end;">
+        <div style="align-self:center;"><label style="margin-bottom:0;">${d}</label></div>
+        <div><input type="text" data-dept-input="${d}" value="${(map[d]||'').replace(/"/g,'&quot;')}" placeholder="name@health.gov.sc"></div>
+      </div>`).join('') + `<button class="btn btn-gold" id="saveDeptContacts" type="button">Save Department Contacts</button>`;
+    document.getElementById('saveDeptContacts').addEventListener('click', async () => {
+      for(const d of DEPARTMENTS){
+        await setDepartmentContact(d, document.querySelector(`[data-dept-input="${d}"]`).value.trim());
+      }
+      await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Website Content Updated', status:'Success', details:'Department contacts edited' });
+      toast('Department contacts updated.'); renderAudit();
+    });
+  }
 
   /* ---- Driver logistics (leg duration) ---- */
   async function renderLegMinutes(){
@@ -569,7 +639,7 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
     a.click();
   });
 
-  renderSummary(); renderPending(); renderAdmins(); renderDrivers(); renderMgmt(); renderReportTable(); renderToggles(); renderAudit(); renderLegMinutes(); renderSiteContent();
+  renderSummary(); renderPending(); renderAdmins(); renderDrivers(); renderMgmt(); renderReportTable(); renderToggles(); renderAudit(); renderLegMinutes(); renderSiteContent(); renderDeptContacts();
 }
 </script>
 </body>

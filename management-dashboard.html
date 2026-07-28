@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Management Dashboard — NIHSS</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="theme-management">
@@ -62,6 +63,8 @@
       <div><label for="rLeave">Leaving</label><input type="time" id="rLeave"></div>
       <div><label for="rCollect">Collected</label><input type="time" id="rCollect"></div>
     </div>
+    <label for="rReason">Reason for rescheduling</label>
+    <textarea id="rReason" rows="2" placeholder="Let the requestor know why"></textarea>
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-gold btn-block" id="rConfirm">Send Reschedule</button>
       <button class="btn btn-ghost btn-block" id="rCancel">Cancel</button>
@@ -93,14 +96,14 @@ if(session){
   }
 
   async function renderStats(){
-    const all = await getBookings();
+    const [all, drivers] = await Promise.all([getBookings(), listDrivers()]);
     const now = new Date();
-    const monthBookings = all.filter(b => new Date(b.date).getMonth() === now.getMonth());
     document.getElementById('stats').innerHTML = `
       <div class="stat"><div class="num">${all.length}</div><div class="label">Total requests</div></div>
       <div class="stat"><div class="num">${all.filter(b=>b.status==='Pending').length}</div><div class="label">Pending</div></div>
       <div class="stat"><div class="num">${all.filter(b=>b.status==='Accepted').length}</div><div class="label">Approved</div></div>
       <div class="stat"><div class="num">${all.filter(b=>b.status==='Denied'||b.status==='Declined').length}</div><div class="label">Denied</div></div>
+      <div class="stat"><div class="num">${drivers.length}</div><div class="label">Total drivers</div></div>
     `;
   }
 
@@ -109,6 +112,7 @@ if(session){
   function openReschedule(id){
     rescheduleTargetId = id;
     document.getElementById('rDate').value = new Date().toISOString().slice(0,10);
+    document.getElementById('rReason').value = '';
     document.getElementById('rescheduleModal').style.display = 'flex';
   }
   document.getElementById('rCancel').addEventListener('click', () => {
@@ -116,8 +120,10 @@ if(session){
   });
   document.getElementById('rConfirm').addEventListener('click', async () => {
     const d = document.getElementById('rDate').value, l = document.getElementById('rLeave').value, c = document.getElementById('rCollect').value;
+    const reason = document.getElementById('rReason').value.trim();
     if(!d || !l || !c){ toast('Fill in the proposed date and times.'); return; }
-    await rescheduleBooking(rescheduleTargetId, d, l, c, session.name + ' (management)', session);
+    if(!reason){ toast('Please give a reason for rescheduling.'); return; }
+    await rescheduleBooking(rescheduleTargetId, d, l, c, reason, session.name + ' (management)', session);
     document.getElementById('rescheduleModal').style.display = 'none';
     toast('Reschedule proposed — requestor emailed with the new time.');
     refreshRail(); renderStats(); renderPending(); renderTable();
