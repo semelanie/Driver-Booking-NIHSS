@@ -291,7 +291,10 @@ tbody tr:hover{ background:var(--cream-dim); }
   #deptContactWrap select{ margin-bottom:0; }
   .hint{ font-size:.76rem; line-height:1.4; }
 }
-.how-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+.how-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; overflow:hidden; max-height:2000px; opacity:1; transition:max-height .3s ease, opacity .25s ease, margin .3s ease; }
+.how-grid.collapsed{ max-height:0; opacity:0; margin:0; }
+.how-toggle{ display:inline-flex; align-items:center; }
+.how-toggle.collapsed #howChevron{ transform:rotate(-90deg); }
 @media(max-width:900px){ .how-grid{ grid-template-columns:repeat(2,1fr); } }
 @media(max-width:560px){ .how-grid{ grid-template-columns:1fr; } }
 .how-card{ background:var(--white); border:1px solid var(--paper-line); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px; transition:transform .18s ease, box-shadow .18s ease; }
