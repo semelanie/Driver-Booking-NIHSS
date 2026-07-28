@@ -460,6 +460,20 @@ async function removeReportEmail(id){
   if(error) console.error(error);
 }
 
+/* ---------- Editable site content (homepage copy) ---------- */
+async function getSiteContent(){
+  const { data, error } = await sb.from('site_content').select('*');
+  if(error){ console.error(error); return {}; }
+  const map = {};
+  data.forEach(r => { map[r.key] = r.value; });
+  return map;
+}
+async function setSiteContent(key, value){
+  const { error } = await sb.from('site_content').upsert({ key, value });
+  if(error) console.error(error);
+  return !error;
+}
+
 /* ---------- Dashboard column visibility (cosmetic — kept local per browser) ---------- */
 function getViewSettings(fallback){
   try{ const v = JSON.parse(localStorage.getItem('nihss_view_settings')); return v || fallback; }
