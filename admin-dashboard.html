@@ -87,6 +87,32 @@
     <pre id="reportPreview" style="display:none;background:var(--cream-dim);padding:14px;border-radius:8px;margin-top:12px;font-size:.8rem;white-space:pre-wrap;"></pre>
   </div>
 
+  <div class="section-title-row"><h3 style="margin:0;">🖋️ Website content</h3></div>
+  <div class="card" style="margin-bottom:36px;">
+    <p>Edit the homepage's wording directly — changes appear on the site immediately after saving, no code needed.</p>
+    <label for="scHeroEyebrow">Eyebrow (small line above the title)</label><input id="scHeroEyebrow">
+    <label for="scHeroTitle">Main heading</label><input id="scHeroTitle">
+    <label for="scHeroSubtitle">Subheading</label><textarea id="scHeroSubtitle" rows="2"></textarea>
+    <div class="field-row">
+      <div><label for="scHow1Title">Step 1 title</label><input id="scHow1Title"></div>
+      <div><label for="scHow1Desc">Step 1 description</label><input id="scHow1Desc"></div>
+    </div>
+    <div class="field-row">
+      <div><label for="scHow2Title">Step 2 title</label><input id="scHow2Title"></div>
+      <div><label for="scHow2Desc">Step 2 description</label><input id="scHow2Desc"></div>
+    </div>
+    <div class="field-row">
+      <div><label for="scHow3Title">Step 3 title</label><input id="scHow3Title"></div>
+      <div><label for="scHow3Desc">Step 3 description</label><input id="scHow3Desc"></div>
+    </div>
+    <div class="field-row">
+      <div><label for="scHow4Title">Step 4 title</label><input id="scHow4Title"></div>
+      <div><label for="scHow4Desc">Step 4 description</label><input id="scHow4Desc"></div>
+    </div>
+    <label for="scFooterOrgName">Footer organisation name</label><input id="scFooterOrgName">
+    <button class="btn btn-gold" id="saveSiteContent" type="button">Save Website Content</button>
+  </div>
+
   <div class="section-title-row"><h3 style="margin:0;">🚦 Driver logistics</h3></div>
   <div class="card" style="margin-bottom:36px;">
     <p>The driver only takes each requestor out and comes back to school parking, then goes out again later to collect them — he isn't tied up for the whole time in between. This setting controls how long the app assumes each of those two short trips takes, which decides when the gold bar shows the driver as free.</p>
@@ -452,6 +478,31 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
     toast('Preview generated (simulated send to recipients).');
   });
 
+  /* ---- Website content ---- */
+  const SC_FIELDS = {
+    scHeroEyebrow:'hero_eyebrow', scHeroTitle:'hero_title', scHeroSubtitle:'hero_subtitle',
+    scHow1Title:'how1_title', scHow1Desc:'how1_desc',
+    scHow2Title:'how2_title', scHow2Desc:'how2_desc',
+    scHow3Title:'how3_title', scHow3Desc:'how3_desc',
+    scHow4Title:'how4_title', scHow4Desc:'how4_desc',
+    scFooterOrgName:'footer_org_name'
+  };
+  async function renderSiteContent(){
+    const c = await getSiteContent();
+    Object.entries(SC_FIELDS).forEach(([id, key]) => {
+      const el = document.getElementById(id);
+      if(el && c[key] !== undefined) el.value = c[key];
+    });
+  }
+  document.getElementById('saveSiteContent').addEventListener('click', async () => {
+    for(const [id, key] of Object.entries(SC_FIELDS)){
+      await setSiteContent(key, document.getElementById(id).value);
+    }
+    await logAudit({ username:session.username, fullName:session.name, role:'admin', action:'Website Content Updated', status:'Success', details:'Homepage copy edited' });
+    toast('Website content updated — refresh the homepage to see it live.');
+    renderAudit();
+  });
+
   /* ---- Driver logistics (leg duration) ---- */
   async function renderLegMinutes(){
     document.getElementById('legMinutesInput').value = await getLegMinutes();
@@ -518,7 +569,7 @@ ${Object.entries(byDept).map(([d,n])=>`  ${d}: ${n}`).join('\n') || '  —'}`;
     a.click();
   });
 
-  renderSummary(); renderPending(); renderAdmins(); renderDrivers(); renderMgmt(); renderReportTable(); renderToggles(); renderAudit(); renderLegMinutes();
+  renderSummary(); renderPending(); renderAdmins(); renderDrivers(); renderMgmt(); renderReportTable(); renderToggles(); renderAudit(); renderLegMinutes(); renderSiteContent();
 }
 </script>
 </body>
