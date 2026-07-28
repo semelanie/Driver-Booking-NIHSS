@@ -106,7 +106,10 @@
               <option>Registrar</option>
               <option>Site &amp; Facility Officer</option>
             </select>
-            <div id="deptContact" class="hint" style="display:none;margin-top:-10px;"></div>
+            <div id="deptContactWrap" style="display:none;margin-top:8px;">
+              <label for="deptContact" style="font-size:.8rem;">Staff contact for this department</label>
+              <select id="deptContact"></select>
+            </div>
           </div>
         </div>
         <div class="field-row">
@@ -144,7 +147,7 @@
     </div>
     <span>© <span id="year"></span> <span id="footerOrgName" class="footer-org-name">National Institute of Health and Social Studies</span></span>
     <span class="footer-tagline" style="display:none;"></span>
-    <span style="font-size:.76rem;color:var(--grey);">Powered by Databytes Consultancy Pty Ltd</span>
+    <span style="font-size:.76rem;color:var(--grey);align-self:center;">Powered by Databytes Consultancy Pty Ltd</span>
   </div>
 </footer>
 
@@ -186,13 +189,15 @@ document.getElementById('dayField').value = dayName(today);
 let deptContacts = {};
 getDepartmentContacts().then(map => { deptContacts = map; });
 document.getElementById('dept').addEventListener('change', function(){
-  const note = document.getElementById('deptContact');
-  const emails = deptContacts[this.value];
-  if(this.value && emails){
-    note.style.display = 'block';
-    note.textContent = `Staff contact for ${this.value}: ${emails}`;
+  const wrap = document.getElementById('deptContactWrap');
+  const select = document.getElementById('deptContact');
+  const raw = deptContacts[this.value];
+  const emails = raw ? raw.split(',').map(e => e.trim()).filter(Boolean) : [];
+  if(this.value && emails.length){
+    select.innerHTML = emails.map(e => `<option value="${e}">${e}</option>`).join('');
+    wrap.style.display = 'block';
   } else {
-    note.style.display = 'none';
+    wrap.style.display = 'none';
   }
 });
 
